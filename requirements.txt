@@ -1,0 +1,16 @@
+# API
+fastapi
+uvicorn[standard]
+python-multipart
+
+# LLM — Google Gen AI SDK
+google-genai>=1.0.0
+
+# HTTP (PubMed + ClinicalTrials.gov)
+httpx
+
+# Data / seeding
+pandas
+
+# Env
+python-dotenv
