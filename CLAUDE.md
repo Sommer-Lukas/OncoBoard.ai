@@ -1,4 +1,4 @@
-# CLAUDE.md — TumorBoard.ai
+# CLAUDE.md — OncoBoard.ai
 
 ## What This Is
 Multi-agent AI system for breast cancer tumor boards. Agents handle all prep and follow-up. Clinicians make every decision.
