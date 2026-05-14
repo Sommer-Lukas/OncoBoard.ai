@@ -1,0 +1,186 @@
+"""Gemini client wrapper.
+
+Exposes a single async `generate()` method that returns a typed `GeminiResponse`.
+A real client talks to google-genai; a mock client returns canned responses for
+tests and dev (toggled by `GEMINI_MOCK=1`).
+
+Token usage is surfaced on the response so the agent base class can persist it
+to `agent_outputs.tokens_used` for cost tracking.
+"""
+from __future__ import annotations
+
+import asyncio
+import logging
+from collections import deque
+from typing import Any, Protocol, runtime_checkable
+
+from src.agents.types import GeminiResponse, ModelTier
+from src.config import Settings, get_settings
+
+logger = logging.getLogger(__name__)
+
+
+@runtime_checkable
+class GeminiClient(Protocol):
+    async def generate(
+        self,
+        *,
+        model_tier: ModelTier,
+        prompt: str,
+        system_instruction: str | None = None,
+        response_schema: type[Any] | None = None,
+    ) -> GeminiResponse: ...
+
+
+# ---------- Real client ----------
+
+class RealGeminiClient:
+    """Thin wrapper around google-genai's async client.
+
+    Retries transient failures with exponential backoff. Surfaces total token
+    count from response.usage_metadata so callers can persist it for audit.
+    """
+
+    def __init__(
+        self,
+        api_key: str,
+        model_pro: str,
+        model_flash: str,
+        model_vision: str,
+        *,
+        max_retries: int = 2,
+        base_backoff_s: float = 0.5,
+    ) -> None:
+        from google import genai
+
+        self._client = genai.Client(api_key=api_key)
+        self._models: dict[ModelTier, str] = {
+            "pro": model_pro,
+            "flash": model_flash,
+            "vision": model_vision,
+        }
+        self._max_retries = max_retries
+        self._base_backoff_s = base_backoff_s
+
+    async def generate(
+        self,
+        *,
+        model_tier: ModelTier,
+        prompt: str,
+        system_instruction: str | None = None,
+        response_schema: type[Any] | None = None,
+    ) -> GeminiResponse:
+        from google.genai import types as genai_types
+
+        model = self._models[model_tier]
+        config_kwargs: dict[str, Any] = {}
+        if system_instruction is not None:
+            config_kwargs["system_instruction"] = system_instruction
+        if response_schema is not None:
+            config_kwargs["response_mime_type"] = "application/json"
+            config_kwargs["response_schema"] = response_schema
+        config = genai_types.GenerateContentConfig(**config_kwargs) if config_kwargs else None
+
+        attempt = 0
+        while True:
+            try:
+                resp = await self._client.aio.models.generate_content(
+                    model=model,
+                    contents=prompt,
+                    config=config,
+                )
+                return GeminiResponse(
+                    text=resp.text or "",
+                    tokens_used=int(getattr(resp.usage_metadata, "total_token_count", 0) or 0),
+                )
+            except Exception as e:
+                if attempt >= self._max_retries:
+                    raise
+                backoff = self._base_backoff_s * (2 ** attempt)
+                logger.warning(
+                    "gemini_retry",
+                    extra={"extra_fields": {
+                        "event": "gemini_retry",
+                        "model_tier": model_tier,
+                        "attempt": attempt + 1,
+                        "backoff_s": backoff,
+                        "error": str(e),
+                    }},
+                )
+                await asyncio.sleep(backoff)
+                attempt += 1
+
+
+# ---------- Mock client ----------
+
+class MockGeminiClient:
+    """In-memory canned-response client for tests and offline dev.
+
+    Queue responses in FIFO order with `.queue(text, tokens_used=...)`. When the
+    queue is empty, `default_response` is returned (or an empty `{}` JSON if
+    none was set). Every `generate()` call is recorded on `.calls` so tests can
+    assert on what was sent.
+    """
+
+    def __init__(self, *, default_response: GeminiResponse | None = None) -> None:
+        self._queue: deque[GeminiResponse] = deque()
+        self.default_response: GeminiResponse = default_response or GeminiResponse(
+            text="{}", tokens_used=0
+        )
+        self.calls: list[dict[str, Any]] = []
+
+    def queue(self, text: str, *, tokens_used: int = 0) -> None:
+        self._queue.append(GeminiResponse(text=text, tokens_used=tokens_used))
+
+    def reset(self) -> None:
+        self._queue.clear()
+        self.calls.clear()
+
+    async def generate(
+        self,
+        *,
+        model_tier: ModelTier,
+        prompt: str,
+        system_instruction: str | None = None,
+        response_schema: type[Any] | None = None,
+    ) -> GeminiResponse:
+        self.calls.append(
+            {
+                "model_tier": model_tier,
+                "prompt": prompt,
+                "system_instruction": system_instruction,
+                "response_schema": response_schema.__name__ if response_schema else None,
+            }
+        )
+        if self._queue:
+            return self._queue.popleft()
+        return self.default_response
+
+
+# ---------- Factory ----------
+
+_singleton: GeminiClient | None = None
+
+
+def get_gemini_client(settings: Settings | None = None) -> GeminiClient:
+    """Return a process-wide GeminiClient. Honors GEMINI_MOCK at construction time."""
+    global _singleton
+    if _singleton is not None:
+        return _singleton
+    s = settings or get_settings()
+    if s.gemini_mock or not s.gemini_api_key:
+        _singleton = MockGeminiClient()
+    else:
+        _singleton = RealGeminiClient(
+            api_key=s.gemini_api_key,
+            model_pro=s.gemini_model_pro,
+            model_flash=s.gemini_model_flash,
+            model_vision=s.gemini_model_vision,
+        )
+    return _singleton
+
+
+def reset_gemini_client() -> None:
+    """Drop the cached client. Test-only — call between cases that need a fresh mock."""
+    global _singleton
+    _singleton = None
