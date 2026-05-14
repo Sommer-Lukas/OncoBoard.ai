@@ -107,5 +107,7 @@ frontend/dist-ssr/
 .env.*.local
 data/*.csv
 data/*.zip
+data/raw/
+data/processed/
 *.db
 *.sqlite
