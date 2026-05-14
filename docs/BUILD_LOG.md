@@ -10,8 +10,8 @@ The build plan that drives these stages lives in `~/.claude/plans/hazy-snacking-
 | 2 | DB layer (schema, models, repository, init) | ✅ landed |
 | — | Reconcile ARCHITECTURE.md with the real dataset | ✅ landed |
 | 3 | Data seeding (synthetic + TCGA-BRCA) | ✅ landed |
-| 4 | Agent framework (BaseAgent + MockGeminiClient) | ⏳ next |
-| 5 | Vertical slice: CaseCompiler + SummaryAgent + SSE route | ⏳ pending |
+| 4 | Agent framework (BaseAgent + MockGeminiClient) | ✅ landed |
+| 5 | Vertical slice: CaseCompiler + SummaryAgent + SSE route | ⏳ next |
 | 6 | Test infrastructure (pytest + mocked Gemini) | ⏳ pending |
 
 > **How to add an entry:** append a new `## Stage N — Title` section at the bottom following the template at the end of this file. Keep entries short — link to the commit for code, document only the *why* and *what changed*.
@@ -179,8 +179,44 @@ The 370 Unknown cases is faithful to the source — that's how many TCGA-BRCA pa
 
 ---
 
-## Up next — Stage 4
-**Agent framework.** A single `src/agents/base.py` with `BaseAgent` (typed inputs, typed outputs via Pydantic, persistence to `agent_outputs`, structured logging, retry) and `src/agents/gemini_client.py` (Gemini SDK wrapper + `MockGeminiClient` toggled by `GEMINI_MOCK=1`). Once that lands, the remaining 12 agents are template work.
+## Stage 4 — Agent framework
+- **Branch:** `feature/agent-framework` (cut from `feature/data-seeding`)
+- **Commit:** `d7e6b96`
+- **Landed:** 2026-05-14
+- **PR:** https://github.com/RaneemK-commits/OncoBoard.ai/pull/new/feature/agent-framework
+
+### What landed
+| File | Purpose |
+|---|---|
+| `src/agents/types.py` | `ModelTier` literal, `GeminiResponse` dataclass, `AgentError` / `CaseNotFoundError` / `AgentOutputValidationError` |
+| `src/agents/gemini_client.py` | `GeminiClient` Protocol; `RealGeminiClient` (async google-genai with retry+backoff and structured-output support); `MockGeminiClient` (FIFO queue + `.calls` recorder); `get_gemini_client()` factory honoring `GEMINI_MOCK` and missing API key |
+| `src/agents/base.py` | `BaseAgent[TOutput]` abstract class. Subclasses set `name` / `model_tier` / `output_schema` and implement `run()`. The framework loads the case, validates output, persists to `agent_outputs` (success or error), and logs duration + tokens |
+| `scripts/smoke_stage4.py` | 7 checks: ClassVar enforcement, happy path, missing case, schema mismatch, subclass exception, mock call recording, run_id grouping |
+
+### Decisions worth knowing
+- **One lifecycle, owned by `BaseAgent.execute()`.** Subclasses cannot accidentally skip persistence or logging — the wrapper handles both. This is the single point where all 13 agents will agree on lifecycle, so getting it right means each agent file becomes a thin specialist implementation.
+- **Errors are first-class.** Any subclass exception or schema-validation failure writes a `status='error'` row to `agent_outputs` (with the error message) before re-raising. Audit trail never loses a run.
+- **ClassVar omissions fail at class-definition time** via `__init_subclass__`, not at first `execute()`. Faster feedback for agent authors.
+- **Tokens accumulate per `execute()`.** Agents that call Gemini multiple times in one run get a single `tokens_used` total persisted. `BaseAgent.call_gemini()` is the helper that drives the accumulator.
+- **`MockGeminiClient` is injectable per-agent** (`Agent(gemini=mock)`), so tests don't need monkeypatching. The mock records every call on `.calls` for assertions.
+- **No real Gemini call is required to build agents.** `GEMINI_MOCK=1` (or an empty API key) routes everything through the mock, letting dev and CI run without API quota.
+
+### Verify locally
+```powershell
+.\.venv\Scripts\python.exe -m src.data.seed_synthetic  # need cases to point an agent at
+$env:GEMINI_MOCK="1"
+.\.venv\Scripts\python.exe scripts\smoke_stage4.py
+# Expected final line: "SMOKE TEST PASSED"
+```
+
+### Unblocks
+- Stage 5 vertical slice — `CaseCompiler` and `SummaryAgent` are now just two thin `BaseAgent` subclasses plus an SSE route.
+- The remaining 11 pre/during/post-meeting agents are template work.
+
+---
+
+## Up next — Stage 5
+**Vertical slice.** `CaseCompiler` (Flash, DB-only) chained into `SummaryAgent` (Flash, depends on CaseCompiler output) through a `POST /cases/{id}/pre-meeting/run` SSE route. Proves the whole pipeline shape — DB → Agent → DB write → FastAPI SSE — before scaling out to the remaining 11 agents.
 
 ---
 
