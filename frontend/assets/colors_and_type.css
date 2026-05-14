@@ -1,0 +1,285 @@
+/**
+ * OncoBoard.ai Design Tokens
+ * 
+ * Google Material 3 inspired design system
+ * for life-critical medical decision support.
+ */
+
+/* ============================================
+   TYPOGRAPHY
+   ============================================ */
+
+/* Font Families */
+:root {
+  --font-sans: 'Google Sans', 'Product Sans', 'Roboto', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  --font-mono: 'Roboto Mono', 'SF Mono', Monaco, 'Cascadia Code', monospace;
+}
+
+/* Font Sizes */
+:root {
+  --text-xs: 12px;
+  --text-sm: 14px;
+  --text-base: 16px;
+  --text-lg: 20px;
+  --text-xl: 24px;
+  --text-2xl: 32px;
+}
+
+/* Font Weights */
+:root {
+  --weight-normal: 400;
+  --weight-medium: 500;
+  --weight-bold: 700;
+}
+
+/* Line Heights */
+:root {
+  --leading-tight: 1.25;
+  --leading-normal: 1.5;
+  --leading-relaxed: 1.75;
+}
+
+/* ============================================
+   SEMANTIC TYPOGRAPHY
+   ============================================ */
+
+:root {
+  /* Headings */
+  --h1-size: var(--text-2xl);
+  --h1-weight: var(--weight-bold);
+  --h1-line: var(--leading-tight);
+
+  --h2-size: var(--text-xl);
+  --h2-weight: var(--weight-bold);
+  --h2-line: var(--leading-tight);
+
+  --h3-size: var(--text-lg);
+  --h3-weight: var(--weight-medium);
+  --h3-line: var(--leading-normal);
+
+  /* Body */
+  --body-size: var(--text-base);
+  --body-weight: var(--weight-normal);
+  --body-line: var(--leading-normal);
+
+  --body-sm-size: var(--text-sm);
+  --body-sm-weight: var(--weight-normal);
+  --body-sm-line: var(--leading-normal);
+
+  /* Code & Monospace */
+  --code-size: var(--text-sm);
+  --code-weight: var(--weight-normal);
+  --code-line: var(--leading-relaxed);
+
+  /* Labels */
+  --label-size: var(--text-sm);
+  --label-weight: var(--weight-medium);
+  --label-line: var(--leading-normal);
+}
+
+/* ============================================
+   COLOR PALETTE
+   ============================================ */
+
+/* Surface Colors */
+:root {
+  --color-bg: #FFFFFF;
+  --color-surface: #F8F9FA;
+  --color-surface-2: #E8EAED;
+  --color-border: #DADCE0;
+}
+
+/* Google Core Brand */
+:root {
+  --color-primary: #1A73E8;
+  --color-on-primary: #FFFFFF;
+  --color-primary-tonal-bg: #D2E3FC;
+  --color-primary-tonal-fg: #174EA6;
+}
+
+/* Semantic Colors */
+:root {
+  --color-danger: #EA4335;
+  --color-on-danger: #FFFFFF;
+  --color-danger-tonal-bg: #FCE8E6;
+  --color-danger-tonal-fg: #C5221F;
+
+  --color-success: #34A853;
+  --color-on-success: #FFFFFF;
+  --color-success-tonal-bg: #E6F4EA;
+  --color-success-tonal-fg: #188038;
+
+  --color-warning: #FBBC04;
+  --color-on-warning: #202124;
+  --color-warning-tonal-bg: #FEF7E0;
+  --color-warning-tonal-fg: #B06000;
+
+  --color-info: #1A73E8;
+  --color-on-info: #FFFFFF;
+  --color-info-tonal-bg: #D2E3FC;
+  --color-info-tonal-fg: #174EA6;
+}
+
+/* Text Colors */
+:root {
+  --color-text: #202124;        /* 87% opacity black */
+  --color-text-2: #5F6368;      /* secondary text */
+  --color-text-3: #80868B;      /* placeholders, disabled */
+  --color-on-surface: #202124;
+}
+
+/* ============================================
+   SPACING & LAYOUT
+   ============================================ */
+
+/* 8dp Grid */
+:root {
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 16px;
+  --space-4: 24px;
+  --space-5: 32px;
+  --space-6: 48px;
+  --space-7: 64px;
+  --space-8: 96px;
+}
+
+/* Layout Dimensions */
+:root {
+  --sidebar-width: 240px;
+  --topbar-height: 56px;
+  --panel-width: 360px;
+  --content-max-width: 1280px;
+}
+
+/* ============================================
+   SHAPE & RADIUS
+   ============================================ */
+
+:root {
+  --radius-sm: 8px;
+  --radius-md: 16px;
+  --radius-lg: 24px;
+  --radius-pill: 999px;
+  --radius-full: 9999px;
+}
+
+/* ============================================
+   ELEVATION (Material Shadows)
+   ============================================ */
+
+:root {
+  --elevation-0: none;
+  --elevation-1: 0 1px 2px rgba(60, 64, 67, 0.1);
+  --elevation-2: 0 1px 3px rgba(60, 64, 67, 0.15), 0 4px 8px rgba(60, 64, 67, 0.1);
+  --elevation-3: 0 1px 6px rgba(60, 64, 67, 0.15), 0 8px 16px rgba(60, 64, 67, 0.1);
+  --elevation-4: 0 2px 8px rgba(60, 64, 67, 0.15), 0 12px 24px rgba(60, 64, 67, 0.1);
+}
+
+/* ============================================
+   MOTION & ANIMATION
+   ============================================ */
+
+/* Easing Curves */
+:root {
+  --ease-standard: cubic-bezier(0.4, 0, 0.2, 1);
+  --ease-emphasized: cubic-bezier(0.2, 0, 0, 1);
+  --ease-decelerate: cubic-bezier(0, 0, 0.2, 1);
+  --ease-accelerate: cubic-bezier(0.4, 0, 1, 1);
+}
+
+/* Durations */
+:root {
+  --duration-instant: 50ms;
+  --duration-fast: 150ms;
+  --duration-normal: 250ms;
+  --duration-slow: 400ms;
+}
+
+/* ============================================
+   DARK MODE (Optional)
+   ============================================ */
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --color-bg: #202124;
+    --color-surface: #303134;
+    --color-surface-2: #3C4043;
+    --color-border: #5F6368;
+    
+    --color-text: #E8EAED;
+    --color-text-2: #9AA0A6;
+    --color-text-3: #5F6368;
+    --color-on-surface: #E8EAED;
+
+    /* Adjusted tonal colors for dark mode */
+    --color-primary-tonal-bg: #1A3A5C;
+    --color-primary-tonal-fg: #A8C7FA;
+    
+    --color-success-tonal-bg: #1E3A2A;
+    --color-success-tonal-fg: #81C995;
+    
+    --color-danger-tonal-bg: #3E221F;
+    --color-danger-tonal-fg: #F28B82;
+    
+    --color-warning-tonal-bg: #3E3426;
+    --color-warning-tonal-fg: #FDD663;
+  }
+}
+
+/* ============================================
+   BASE STYLES (Optional Reset)
+   ============================================ */
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  padding: 0;
+  font-family: var(--font-sans);
+  font-size: var(--body-size);
+  font-weight: var(--body-weight);
+  line-height: var(--body-line);
+  color: var(--color-text);
+  background: var(--color-bg);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+h1, h2, h3, h4, h5, h6 {
+  margin: 0;
+  font-weight: var(--weight-medium);
+}
+
+h1 {
+  font-size: var(--h1-size);
+  font-weight: var(--h1-weight);
+  line-height: var(--h1-line);
+}
+
+h2 {
+  font-size: var(--h2-size);
+  font-weight: var(--h2-weight);
+  line-height: var(--h2-line);
+}
+
+h3 {
+  font-size: var(--h3-size);
+  font-weight: var(--h3-weight);
+  line-height: var(--h3-line);
+}
+
+p {
+  margin: 0;
+}
+
+code, pre {
+  font-family: var(--font-mono);
+  font-size: var(--code-size);
+}
+
+button {
+  font-family: inherit;
+}
