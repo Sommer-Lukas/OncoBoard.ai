@@ -12,5 +12,15 @@ httpx
 # Data / seeding
 pandas
 
-# Env
+# Env / settings
 python-dotenv
+pydantic
+pydantic-settings
+
+# DB (async SQLite for FastAPI)
+aiosqlite
+
+# Testing
+pytest
+pytest-asyncio
+pytest-httpx
