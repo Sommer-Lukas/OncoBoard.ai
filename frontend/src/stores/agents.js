@@ -1,5 +1,5 @@
 import { defineStore } from 'pinia'
-import { ref } from 'vue'
+import { ref, computed } from 'vue'
 import { getAgents } from '../services/api.js'
 
 export const useAgentsStore = defineStore('agents', () => {
@@ -21,5 +21,9 @@ export const useAgentsStore = defineStore('agents', () => {
     return agentsByPatient.value[patientId] ?? []
   }
 
-  return { agentsByPatient, loading, loadAgents, getForPatient }
+  const runningCount = computed(() =>
+    Object.values(agentsByPatient.value).flat().filter(a => a.status === 'running').length
+  )
+
+  return { agentsByPatient, loading, loadAgents, getForPatient, runningCount }
 })

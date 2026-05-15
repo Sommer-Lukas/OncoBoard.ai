@@ -1,5 +1,5 @@
 <script setup>
-import { ref, watch, onMounted } from 'vue'
+import { ref, watch, computed, onMounted } from 'vue'
 import PatientHeader from '../components/PatientHeader.vue'
 import AgentCard from '../components/AgentCard.vue'
 import DataGapAlert from '../components/DataGapAlert.vue'
@@ -39,6 +39,12 @@ function closeDatabase() {
   showDatabase.value = false
   databaseFilter.value = null
 }
+
+const completedCount = computed(() => agents.value.filter(a => a.status === 'complete').length)
+const runningCount   = computed(() => agents.value.filter(a => a.status === 'running').length)
+const progressPct    = computed(() =>
+  agents.value.length ? (completedCount.value / agents.value.length) * 100 : 0
+)
 </script>
 
 <template>
@@ -103,12 +109,30 @@ function closeDatabase() {
             </div>
           </div>
 
-          <div class="section-title">Agent Progress</div>
+          <div class="agent-section-header">
+            <div class="agent-section-title">
+              Agent Orchestration
+              <Transition name="live-badge">
+                <span v-if="runningCount > 0" class="live-badge">
+                  <span class="live-dot" aria-hidden="true"></span>
+                  LIVE
+                </span>
+              </Transition>
+            </div>
+            <div v-if="agents.length" class="progress-row">
+              <span class="progress-text">{{ completedCount }}/{{ agents.length }} complete</span>
+              <div class="progress-track" role="progressbar" :aria-valuenow="progressPct" aria-valuemin="0" aria-valuemax="100">
+                <div class="progress-fill" :style="{ width: progressPct + '%' }"></div>
+              </div>
+            </div>
+          </div>
+
           <div class="agent-grid">
             <AgentCard
-              v-for="agent in agents"
+              v-for="(agent, i) in agents"
               :key="agent.name"
               v-bind="agent"
+              :style="{ '--i': i }"
               :on-database-click="agent.status === 'complete' ? openDatabase : null"
               @database-click="openDatabase"
             />
@@ -215,12 +239,98 @@ function closeDatabase() {
 }
 .view-data-btn:hover { background: #F8F9FA; }
 
-.section-title { font-size: 20px; font-weight: 500; color: #202124; margin-bottom: 16px; }
+/* Agent section header */
+.agent-section-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.agent-section-title {
+  font-size: 20px;
+  font-weight: 500;
+  color: #202124;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.live-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 2px 9px;
+  border-radius: 999px;
+  background: rgba(234,67,53,0.1);
+  color: #D93025;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.6px;
+}
+
+.live-dot {
+  width: 6px; height: 6px;
+  border-radius: 50%;
+  background: #EA4335;
+  animation: live-dot-blink 1.2s ease-in-out infinite;
+}
+
+/* Progress */
+.progress-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.progress-text {
+  font-size: 12px;
+  color: #5F6368;
+  white-space: nowrap;
+  font-family: 'Roboto Mono', monospace;
+}
+
+.progress-track {
+  width: 130px; height: 4px;
+  background: #E8EAED; border-radius: 999px;
+  overflow: hidden;
+}
+
+.progress-fill {
+  height: 100%;
+  background: linear-gradient(90deg, #1A73E8, #34A853);
+  border-radius: 999px;
+  transition: width 700ms cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* Live badge transition */
+.live-badge-enter-active,
+.live-badge-leave-active { transition: opacity 250ms, transform 250ms; }
+.live-badge-enter-from,
+.live-badge-leave-to { opacity: 0; transform: scale(0.85); }
 
 .agent-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(340px, 1fr));
   gap: 16px;
   margin-bottom: 32px;
+}
+
+/* Stagger card entrance */
+.agent-grid > * {
+  animation: card-slide-in 280ms cubic-bezier(0, 0, 0.2, 1) both;
+  animation-delay: calc(var(--i, 0) * 60ms);
+}
+
+@keyframes card-slide-in {
+  from { opacity: 0; transform: translateY(10px); }
+  to   { opacity: 1; transform: translateY(0);    }
+}
+
+@keyframes live-dot-blink {
+  0%, 100% { opacity: 1; }
+  50%       { opacity: 0.15; }
 }
 </style>
