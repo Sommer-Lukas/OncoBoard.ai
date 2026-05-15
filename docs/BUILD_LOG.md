@@ -12,7 +12,7 @@ The build plan that drives these stages lives in `~/.claude/plans/hazy-snacking-
 | 3 | Data seeding (synthetic + TCGA-BRCA) | ✅ landed |
 | 4 | Agent framework (BaseAgent + MockGeminiClient) | ✅ landed |
 | 5 | Vertical slice: CaseCompiler + SummaryAgent + SSE route | ✅ landed |
-| 6 | Test infrastructure (pytest + mocked Gemini) | ⏳ next |
+| 6 | Test infrastructure (pytest + mocked Gemini) | ✅ landed |
 
 > **How to add an entry:** append a new `## Stage N — Title` section at the bottom following the template at the end of this file. Keep entries short — link to the commit for code, document only the *why* and *what changed*.
 
@@ -85,12 +85,9 @@ uvicorn src.main:app --reload
 
 ### Verify locally
 ```powershell
-.\.venv\Scripts\python.exe -m src.db.init_db
-.\.venv\Scripts\python.exe scripts\smoke_stage2.py
-# Expected final line: "SMOKE TEST PASSED"
+.\.venv\Scripts\python.exe -m pytest tests/test_repository.py -q
 ```
-
-The smoke test exercises every CRUD helper, every JSON-column roundtrip, and confirms FK cascade on case delete.
+> Originally verified via `scripts/smoke_stage2.py`; consolidated into the pytest suite in Stage 6. Exercises every CRUD helper, every JSON-column roundtrip, and FK cascade on case delete.
 
 ### Unblocks
 - Stage 3 (seed scripts need the repository layer).
@@ -169,9 +166,9 @@ The 370 Unknown cases is faithful to the source — that's how many TCGA-BRCA pa
 .\.venv\Scripts\python.exe -m src.data.seed_tcga
 # -> case/genomics counts + subtype distribution
 
-.\.venv\Scripts\python.exe scripts\smoke_stage3.py
-# Expected final line: "SMOKE TEST PASSED"
+.\.venv\Scripts\python.exe -m pytest tests/test_subtype.py tests/test_seed_synthetic.py -q
 ```
+> Originally verified via `scripts/smoke_stage3.py`; consolidated into the pytest suite in Stage 6.
 
 ### Unblocks
 - Stage 5 vertical slice: `CaseCompiler` needs real (or synthetic) cases to compile from.
@@ -203,11 +200,9 @@ The 370 Unknown cases is faithful to the source — that's how many TCGA-BRCA pa
 
 ### Verify locally
 ```powershell
-.\.venv\Scripts\python.exe -m src.data.seed_synthetic  # need cases to point an agent at
-$env:GEMINI_MOCK="1"
-.\.venv\Scripts\python.exe scripts\smoke_stage4.py
-# Expected final line: "SMOKE TEST PASSED"
+.\.venv\Scripts\python.exe -m pytest tests/test_agents.py -q
 ```
+> Originally verified via `scripts/smoke_stage4.py`; consolidated into the pytest suite in Stage 6.
 
 ### Unblocks
 - Stage 5 vertical slice — `CaseCompiler` and `SummaryAgent` are now just two thin `BaseAgent` subclasses plus an SSE route.
@@ -244,12 +239,9 @@ $env:GEMINI_MOCK="1"
 
 ### Verify locally
 ```powershell
-.\.venv\Scripts\python.exe -m src.db.init_db
-.\.venv\Scripts\python.exe -m src.data.seed_synthetic
-$env:GEMINI_MOCK="1"
-.\.venv\Scripts\python.exe scripts\smoke_stage5.py
-# Expected final line: "SMOKE TEST PASSED"
+.\.venv\Scripts\python.exe -m pytest tests/test_pipeline_api.py -q
 ```
+> Originally verified via `scripts/smoke_stage5.py`; consolidated into the pytest suite in Stage 6.
 Or run it live: `uvicorn src.main:app` then `POST /cases/SYN-002/pre-meeting/run` and watch the SSE events stream.
 
 ### Unblocks
@@ -258,8 +250,39 @@ Or run it live: `uvicorn src.main:app` then `POST /cases/SYN-002/pre-meeting/run
 
 ---
 
-## Up next — Stage 6
-**Test infrastructure.** Promote the per-stage smoke scripts into a real `pytest` suite under `tests/` with shared fixtures (temp DB, seeded synthetic data, injected `MockGeminiClient`). Mocked Gemini means the suite runs in CI with no API key and no quota burn.
+## Stage 6 — Test infrastructure
+- **Branch:** `feature/stage-6-test-infra` (cut from `master`)
+- **Landed:** 2026-05-15
+- **PR:** #13
+
+### What landed
+| File | Purpose |
+|---|---|
+| `tests/conftest.py` | Shared fixtures: isolated temp DB (`DB_PATH` + cache clear + schema init), `seeded_db` (4 synthetic cases), `mock_gemini`, httpx ASGI `client`. Forces `GEMINI_MOCK=1` + empty API key |
+| `tests/test_subtype.py` | Classifier rules (parametrized) — pure unit, no DB |
+| `tests/test_repository.py` | CRUD roundtrips, JSON columns, `get_genomics_any`, FK cascade |
+| `tests/test_seed_synthetic.py` | Seed coverage, idempotency, genomics blob lookup |
+| `tests/test_agents.py` | BaseAgent lifecycle (ClassVar enforcement, error/success persistence, tokens, run_id) + CaseCompiler + SummaryAgent |
+| `tests/test_pipeline_api.py` | Pipeline event order/run_id, SSE route over httpx (200 stream + 404), failure propagation, read-only endpoints, /health |
+
+### Decisions worth knowing
+- **38 tests, ~2.7s, zero API calls.** Everything runs through `MockGeminiClient`; CI needs no `GEMINI_API_KEY`.
+- **Function-scoped isolation.** Each test gets its own temp SQLite file via `tmp_path` + `monkeypatch`; the memoized `get_settings` cache and Gemini client singleton are cleared before *and* after each test.
+- **Smoke scripts deleted.** `scripts/smoke_stage2-5.py` are fully superseded — keeping duplicate test logic in two places invites drift. `scripts/db_status.py` stays (it's a diagnostic, not a test). Per-stage "Verify locally" blocks above now point at the equivalent `pytest` module.
+
+### Verify locally
+```powershell
+.\.venv\Scripts\python.exe -m pytest -q
+# Expected: "38 passed"
+```
+
+### Unblocks
+- The pipeline extension (remaining 11 agents) now lands on a tested foundation — new agents add test modules instead of accumulating untested surface.
+
+---
+
+## Up next
+The original 6-stage plan is **complete**. Next candidates (not yet scheduled): extend the pre-meeting pipeline with the remaining 5 agents + parallel fan-out; make `BaseAgent.model_tier` optional for deterministic agents; CI workflow to run `pytest` on push.
 
 ---
 

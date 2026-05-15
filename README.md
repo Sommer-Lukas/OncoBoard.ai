@@ -128,7 +128,7 @@ Branding.md        # Design tokens — colors, typography, spacing
 | 3 | Data seeding (synthetic + TCGA-BRCA) | ✅ |
 | 4 | Agent framework (BaseAgent + MockGeminiClient) | ✅ |
 | 5 | Vertical slice: CaseCompiler + SummaryAgent + SSE route | ✅ |
-| 6 | Test infrastructure (pytest + mocked Gemini) | ⏳ |
+| 6 | Test infrastructure (pytest + mocked Gemini) | ✅ |
 
 Full stage-by-stage detail — file lists, decisions, smoke-test commands — in [`docs/BUILD_LOG.md`](docs/BUILD_LOG.md).
 
