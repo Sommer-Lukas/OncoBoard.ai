@@ -3,6 +3,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 
 from src.api.cases import router as cases_router
+from src.api.pipeline import router as pipeline_router
 from src.config import get_settings
 from src.logging_setup import configure_logging, get_logger
 
@@ -17,11 +18,12 @@ def create_app() -> FastAPI:
     app.add_middleware(
         CORSMiddleware,
         allow_origins=["*"],
-        allow_methods=["GET"],
+        allow_methods=["GET", "POST"],
         allow_headers=["*"],
     )
 
     app.include_router(cases_router)
+    app.include_router(pipeline_router)
 
     images_dir = settings.images_dir
     if images_dir.is_dir():

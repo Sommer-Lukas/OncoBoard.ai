@@ -230,6 +230,33 @@ async def get_genomics(
     )
 
 
+async def get_genomics_any(
+    db: aiosqlite.Connection, case_id: str
+) -> CaseGenomics | None:
+    """Return genomics for a case regardless of source (CNV_RAW, synthetic, …).
+
+    Most callers shouldn't care which source produced the copy-number data;
+    pinning a source means synthetic-seeded cases look like they have none.
+    Picks the most recent row if a case somehow has multiple sources.
+    """
+    cur = await db.execute(
+        "SELECT genomics_id, case_id, source, copy_numbers_json, created_at "
+        "FROM case_genomics WHERE case_id = ? ORDER BY created_at DESC, genomics_id DESC "
+        "LIMIT 1",
+        (case_id,),
+    )
+    row = await cur.fetchone()
+    if not row:
+        return None
+    return CaseGenomics(
+        genomics_id=row["genomics_id"],
+        case_id=row["case_id"],
+        source=row["source"],
+        copy_numbers=json.loads(row["copy_numbers_json"]),
+        created_at=row["created_at"],
+    )
+
+
 async def has_genomics(db: aiosqlite.Connection, case_id: str) -> bool:
     cur = await db.execute(
         "SELECT 1 FROM case_genomics WHERE case_id = ? LIMIT 1", (case_id,)
