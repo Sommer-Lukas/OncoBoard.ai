@@ -1,7 +1,8 @@
 <script setup>
-import { ref } from 'vue'
+import { ref, watch, onMounted } from 'vue'
+import { getPatientImages, getCaseGenomics, imageUrl } from '../src/services/api.js'
 
-defineProps({
+const props = defineProps({
   caseData: { type: Object, required: true },
 })
 
@@ -9,11 +10,65 @@ const tabs = [
   { key: 'summary',    label: 'Summary',    icon: 'description' },
   { key: 'radiology',  label: 'Radiology',  icon: 'image' },
   { key: 'pathology',  label: 'Pathology',  icon: 'biotech' },
+  { key: 'genomics',   label: 'Genomics',   icon: 'genetics' },
   { key: 'guidelines', label: 'Guidelines', icon: 'clinical_notes' },
   { key: 'trials',     label: 'Trials',     icon: 'science' },
 ]
 
 const activeTab = ref('summary')
+
+// Images
+const mriImages = ref([])
+const svsImages = ref([])
+const imagesLoading = ref(false)
+
+// Genomics
+const genomicsResult = ref(null)
+const genomicsLoading = ref(false)
+const genomicsError = ref(null)
+
+const DEFAULT_GENES = ['TP53', 'BRCA1', 'BRCA2', 'ERBB2', 'ESR1', 'PIK3CA', 'MYC', 'CCND1', 'CDH1', 'PTEN']
+
+async function loadData(id) {
+  imagesLoading.value = true
+  genomicsLoading.value = true
+  genomicsError.value = null
+  genomicsResult.value = null
+  mriImages.value = []
+  svsImages.value = []
+
+  const [mri, svs] = await Promise.all([
+    getPatientImages(id, 'mri', 16),
+    getPatientImages(id, 'svs', 16),
+  ])
+  mriImages.value = mri
+  svsImages.value = svs
+  imagesLoading.value = false
+
+  try {
+    genomicsResult.value = await getCaseGenomics(id, DEFAULT_GENES)
+  } catch (e) {
+    genomicsError.value = e.message
+  }
+  genomicsLoading.value = false
+}
+
+onMounted(() => loadData(props.caseData.id))
+watch(() => props.caseData.id, loadData)
+
+function cnClass(v) {
+  if (v == null) return 'cn-unknown'
+  if (v > 3) return 'cn-gain'
+  if (v < 1.5) return 'cn-loss'
+  return 'cn-normal'
+}
+
+function cnLabel(v) {
+  if (v == null) return '—'
+  if (v > 3) return 'Gain'
+  if (v < 1.5) return 'Loss'
+  return 'Normal'
+}
 </script>
 
 <template>
@@ -46,6 +101,7 @@ const activeTab = ref('summary')
     <!-- Tab content -->
     <div class="tab-content">
 
+      <!-- Summary -->
       <template v-if="activeTab === 'summary'">
         <div class="content-card">
           <div class="field-label">Diagnosis</div>
@@ -61,127 +117,100 @@ const activeTab = ref('summary')
         </div>
       </template>
 
+      <!-- Radiology -->
       <template v-else-if="activeTab === 'radiology'">
         <div class="specialty-header">
           <div class="specialty-badge radiology">
             <span class="material-symbols-outlined" style="font-size: 16px">image</span>
-            RadiologyAgent · BI-RADS 4
+            RadiologyAgent
           </div>
         </div>
         <div class="content-card">
           <div class="field-label">Imaging Findings</div>
           <div class="field-value">{{ caseData.radiology }}</div>
         </div>
-        <div class="file-list">
-          <div class="file-row">
-            <span class="material-symbols-outlined file-icon">image</span>
-            <div class="file-info">
-              <div class="file-name">MRI_Breast_2024-04-18.dcm</div>
-              <div class="file-meta">MRI · Apr 18, 2024</div>
-            </div>
-            <span class="material-symbols-outlined file-action">open_in_new</span>
-          </div>
-          <div class="file-row">
-            <span class="material-symbols-outlined file-icon">image</span>
-            <div class="file-info">
-              <div class="file-name">Mammography_2024-04-10.dcm</div>
-              <div class="file-meta">Mammography · Apr 10, 2024</div>
-            </div>
-            <span class="material-symbols-outlined file-action">open_in_new</span>
-          </div>
-          <div class="file-row missing">
-            <span class="material-symbols-outlined file-icon">warning</span>
-            <div class="file-info">
-              <div class="file-name">CT_Chest_2024-04-15.dcm</div>
-              <div class="file-meta">CT Chest · Missing</div>
-            </div>
-            <span class="file-missing-badge">Missing</span>
+        <div class="field-label section-gap">MRI Scans</div>
+        <div v-if="imagesLoading" class="empty-state">Loading images…</div>
+        <div v-else-if="!mriImages.length" class="empty-state">No MRI data for this case.</div>
+        <div v-else class="image-grid">
+          <div v-for="path in mriImages" :key="path" class="image-cell">
+            <img :src="imageUrl(path)" :alt="path.split('/').pop()" loading="lazy" />
           </div>
         </div>
       </template>
 
+      <!-- Pathology -->
       <template v-else-if="activeTab === 'pathology'">
         <div class="specialty-header">
           <div class="specialty-badge pathology">
             <span class="material-symbols-outlined" style="font-size: 16px">biotech</span>
-            PathologyAgent · Grade 2 IDC
+            PathologyAgent
           </div>
         </div>
         <div class="content-card">
           <div class="field-label">Pathology Report</div>
           <div class="field-value">{{ caseData.pathology }}</div>
         </div>
-        <div class="file-list">
-          <div class="file-row">
-            <span class="material-symbols-outlined file-icon">description</span>
-            <div class="file-info">
-              <div class="file-name">Pathology_Report_2024-04-20.pdf</div>
-              <div class="file-meta">Surgical Pathology · Apr 20, 2024</div>
-            </div>
-            <span class="material-symbols-outlined file-action">open_in_new</span>
-          </div>
-          <div class="file-row">
-            <span class="material-symbols-outlined file-icon">description</span>
-            <div class="file-info">
-              <div class="file-name">Genomic_Testing_2024-04-22.pdf</div>
-              <div class="file-meta">Genomics · Apr 22, 2024</div>
-            </div>
-            <span class="material-symbols-outlined file-action">open_in_new</span>
+        <div class="field-label section-gap">Pathology Slides (SVS)</div>
+        <div v-if="imagesLoading" class="empty-state">Loading slides…</div>
+        <div v-else-if="!svsImages.length" class="empty-state">No pathology slides for this case.</div>
+        <div v-else class="image-grid tight">
+          <div v-for="path in svsImages" :key="path" class="image-cell">
+            <img :src="imageUrl(path)" :alt="path.split('/').pop()" loading="lazy" />
           </div>
         </div>
       </template>
 
+      <!-- Genomics -->
+      <template v-else-if="activeTab === 'genomics'">
+        <div class="specialty-header">
+          <div class="specialty-badge genomics">
+            <span class="material-symbols-outlined" style="font-size: 16px">genetics</span>
+            Copy Number Variation — diploid baseline 2
+          </div>
+        </div>
+        <div v-if="genomicsLoading" class="empty-state">Loading genomics…</div>
+        <div v-else-if="genomicsError" class="empty-state">{{ genomicsError }}</div>
+        <table v-else-if="genomicsResult" class="cn-table">
+          <thead>
+            <tr><th>Gene</th><th>Copy Number</th><th>Status</th></tr>
+          </thead>
+          <tbody>
+            <tr v-for="(v, gene) in genomicsResult.copy_numbers" :key="gene">
+              <td class="gene-name">{{ gene }}</td>
+              <td>{{ v != null ? v.toFixed(2) : '—' }}</td>
+              <td><span class="cn-badge" :class="cnClass(v)">{{ cnLabel(v) }}</span></td>
+            </tr>
+          </tbody>
+        </table>
+        <div v-else class="empty-state">No genomic data available.</div>
+      </template>
+
+      <!-- Guidelines -->
       <template v-else-if="activeTab === 'guidelines'">
         <div class="specialty-header">
           <div class="specialty-badge guidelines">
             <span class="material-symbols-outlined" style="font-size: 16px">clinical_notes</span>
-            GuidelineAgent · NCCN Match
+            GuidelineAgent · NCCN
           </div>
         </div>
         <div class="content-card">
           <div class="field-label">NCCN Recommendation</div>
           <div class="field-value">{{ caseData.guidelines }}</div>
         </div>
-        <div class="file-list">
-          <div class="file-row">
-            <span class="material-symbols-outlined file-icon">menu_book</span>
-            <div class="file-info">
-              <div class="file-name">NCCN_Breast_Cancer_v2024.pdf</div>
-              <div class="file-meta">NCCN Guidelines · 2024</div>
-            </div>
-            <span class="material-symbols-outlined file-action">open_in_new</span>
-          </div>
-        </div>
       </template>
 
+      <!-- Trials -->
       <template v-else-if="activeTab === 'trials'">
         <div class="specialty-header">
           <div class="specialty-badge trials">
             <span class="material-symbols-outlined" style="font-size: 16px">science</span>
-            TrialAgent · 1 match found
+            TrialAgent
           </div>
         </div>
         <div class="content-card">
           <div class="field-label">Eligibility & Evidence</div>
           <div class="field-value">{{ caseData.trials }}</div>
-        </div>
-        <div class="file-list">
-          <div class="file-row">
-            <span class="material-symbols-outlined file-icon">science</span>
-            <div class="file-info">
-              <div class="file-name">NCT05234567 — Phase III</div>
-              <div class="file-meta">ClinicalTrials.gov · Recruiting</div>
-            </div>
-            <span class="material-symbols-outlined file-action">open_in_new</span>
-          </div>
-          <div class="file-row">
-            <span class="material-symbols-outlined file-icon">article</span>
-            <div class="file-info">
-              <div class="file-name">PMID 38201847</div>
-              <div class="file-meta">PubMed · Supporting evidence</div>
-            </div>
-            <span class="material-symbols-outlined file-action">open_in_new</span>
-          </div>
         </div>
       </template>
 
@@ -240,6 +269,7 @@ const activeTab = ref('summary')
   background: #fff;
   border-bottom: 1px solid #DADCE0;
   flex-shrink: 0;
+  overflow-x: auto;
 }
 
 .tab {
@@ -260,18 +290,10 @@ const activeTab = ref('summary')
   white-space: nowrap;
 }
 
-.tab:hover {
-  color: #202124;
-}
+.tab:hover { color: #202124; }
+.tab.active { color: #1A73E8; border-bottom-color: #1A73E8; }
 
-.tab.active {
-  color: #1A73E8;
-  border-bottom-color: #1A73E8;
-}
-
-.tab-icon {
-  font-size: 16px;
-}
+.tab-icon { font-size: 16px; }
 
 /* Tab content area */
 .tab-content {
@@ -281,9 +303,7 @@ const activeTab = ref('summary')
 }
 
 /* Specialty badge */
-.specialty-header {
-  margin-bottom: 16px;
-}
+.specialty-header { margin-bottom: 16px; }
 
 .specialty-badge {
   display: inline-flex;
@@ -296,9 +316,10 @@ const activeTab = ref('summary')
 }
 
 .specialty-badge.radiology  { background: #D2E3FC; color: #174EA6; }
-.specialty-badge.pathology  { background: #E6F4EA; color: #188038; }
+.specialty-badge.pathology  { background: #CEEAD6; color: #0D652D; }
+.specialty-badge.genomics   { background: #F3E8FD; color: #6B3FA0; }
 .specialty-badge.guidelines { background: #FEF7E0; color: #B06000; }
-.specialty-badge.trials     { background: #F3E8FD; color: #6B3FA0; }
+.specialty-badge.trials     { background: #E8F0FE; color: #1967D2; }
 
 /* Content cards */
 .content-card {
@@ -324,74 +345,47 @@ const activeTab = ref('summary')
   line-height: 1.65;
 }
 
-/* File list */
-.file-list {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-}
+.section-gap { margin-top: 8px; margin-bottom: 12px; }
 
-.file-row {
+/* Images */
+.image-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+  gap: 8px;
+}
+.image-grid.tight { grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); }
+
+.image-cell {
+  border-radius: 8px;
+  overflow: hidden;
+  background: #E8EAED;
+  aspect-ratio: 1;
   display: flex;
   align-items: center;
-  gap: 12px;
-  padding: 10px 14px;
-  background: #fff;
-  border-radius: 8px;
-  box-shadow: 0 1px 2px rgba(60, 64, 67, 0.08);
-  cursor: pointer;
-  transition: background 150ms;
+  justify-content: center;
 }
+.image-cell img { width: 100%; height: 100%; object-fit: cover; display: block; }
 
-.file-row:hover {
-  background: #F8F9FA;
+/* Genomics table */
+.cn-table { width: 100%; border-collapse: collapse; font-size: 14px; }
+.cn-table th {
+  text-align: left; padding: 8px 12px;
+  font-size: 11px; font-weight: 500; color: #5F6368;
+  text-transform: uppercase; letter-spacing: 0.4px;
+  border-bottom: 1px solid #E8EAED;
 }
+.cn-table td { padding: 10px 12px; border-bottom: 1px solid #F1F3F4; color: #202124; }
+.gene-name { font-family: 'Roboto Mono', monospace; font-weight: 500; color: #202124; }
+.cn-badge { padding: 2px 10px; border-radius: 999px; font-size: 12px; font-weight: 500; }
+.cn-gain    { background: #FCE8E6; color: #A50E0E; }
+.cn-loss    { background: #D2E3FC; color: #0D47A1; }
+.cn-normal  { background: #CEEAD6; color: #0D652D; }
+.cn-unknown { background: #E8EAED; color: #3C4043; }
 
-.file-row.missing {
-  background: #FEF7E0;
-  cursor: default;
-}
-
-.file-icon {
-  font-size: 18px;
-  color: #5F6368;
-  flex-shrink: 0;
-}
-
-.file-row.missing .file-icon {
-  color: #B06000;
-}
-
-.file-info {
-  flex: 1;
-  min-width: 0;
-}
-
-.file-name {
-  font-size: 13px;
-  font-weight: 500;
-  color: #202124;
-  margin-bottom: 2px;
-}
-
-.file-meta {
-  font-size: 11px;
-  color: #5F6368;
-}
-
-.file-action {
-  font-size: 16px;
+.empty-state {
+  padding: 40px 0;
+  text-align: center;
+  font-size: 14px;
   color: #80868B;
-  flex-shrink: 0;
-}
-
-.file-missing-badge {
-  font-size: 11px;
-  font-weight: 500;
-  padding: 2px 8px;
-  border-radius: 999px;
-  background: #FBBC04;
-  color: #202124;
-  flex-shrink: 0;
 }
 </style>

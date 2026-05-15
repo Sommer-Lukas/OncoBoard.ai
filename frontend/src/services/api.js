@@ -204,17 +204,127 @@ Low Oncotype DX score (RS 14) in node-negative HR+ disease. Stable on endocrine 
   'PT-2024-08442': null, // not yet discussed
 }
 
-// ─── API functions ────────────────────────────────────────────────────────────
-// Replace each body with: const res = await fetch(`${BASE_URL}/...`); return res.json()
+// ─── Field mapping ────────────────────────────────────────────────────────────
 
-export async function getPatients() {
-  return structuredClone(PATIENTS)
+function fmtReceptor(status, pos, neg) {
+  return status === 'Positive' ? pos : status === 'Negative' ? neg : null
+}
+
+function receptorString(c) {
+  return [
+    fmtReceptor(c.er_status,   'ER+', 'ER-'),
+    fmtReceptor(c.pr_status,   'PR+', 'PR-'),
+    fmtReceptor(c.her2_status, 'HER2+', 'HER2-'),
+  ].filter(Boolean).join('/') || '—'
+}
+
+function mapApiCase(c) {
+  return {
+    id: c.case_id,
+    name: c.case_id,
+    age: c.age_at_diagnosis ?? '—',
+    stage: c.ajcc_stage ?? '—',
+    receptors: receptorString(c),
+    diagnosis: [c.histological_type, c.molecular_subtype].filter(Boolean).join(' · ') || '—',
+    boardStatus: 'pending',
+    molecular_subtype: c.molecular_subtype,
+  }
+}
+
+// Derive clinical narrative text from structured TCGA fields.
+// These are the same fields the real agents will read from the DB.
+function mapApiCaseFull(c) {
+  const base = mapApiCase(c)
+
+  // ── Presentation ──
+  const location = c.anatomic_subdivision ?? 'unspecified location'
+  const tumourStatus = c.tumor_status === 'WITH TUMOR' ? 'Active disease.' : c.tumor_status ?? ''
+  const presentation = [
+    `${c.histological_type ?? 'Breast tumour'}, ${location}.`,
+    `AJCC ${c.ajcc_stage ?? 'stage unknown'} (T${c.ajcc_t ?? '?'} N${c.ajcc_n ?? '?'} M${c.ajcc_m ?? '?'}).`,
+    tumourStatus,
+    c.menopause_status ? `Menopause status: ${c.menopause_status}.` : '',
+  ].filter(Boolean).join(' ')
+
+  // ── Previous treatment ──
+  const drugs = c.treatments?.drugs?.join(', ')
+  const surgery = c.surgical_procedure ?? c.treatments?.surgery
+  const nodes = c.lymph_nodes_examined != null ? `${c.lymph_nodes_examined} lymph nodes examined.` : ''
+  const margins = c.margin_status ? `Margins: ${c.margin_status}.` : ''
+  const previousTreatment = [
+    surgery ? `Surgery: ${surgery}.` : 'No prior surgical record.',
+    drugs ? `Systemic therapy: ${drugs}.` : '',
+    nodes,
+    margins,
+  ].filter(Boolean).join(' ') || 'No prior treatment recorded.'
+
+  // ── Pathology ──
+  const her2Detail = c.her2_ihc_score ? ` (IHC ${c.her2_ihc_score})` : ''
+  const pathology = [
+    `${c.histological_type ?? 'Breast carcinoma'}.`,
+    `Receptor status: ER ${c.er_status ?? '?'}, PR ${c.pr_status ?? '?'}, HER2 ${c.her2_status ?? '?'}${her2Detail}.`,
+    c.molecular_subtype ? `Molecular subtype: ${c.molecular_subtype}.` : '',
+    'Genomic copy-number data available via the genomics panel.',
+  ].filter(Boolean).join(' ')
+
+  // ── Radiology (staging proxied from AJCC fields) ──
+  const radiology = [
+    `Staging: T${c.ajcc_t ?? '?'} N${c.ajcc_n ?? '?'} M${c.ajcc_m ?? '?'} (${c.ajcc_stage ?? 'unknown stage'}).`,
+    location ? `Primary site: ${location}.` : '',
+    'Refer to imaging series in case files for detailed findings.',
+  ].filter(Boolean).join(' ')
+
+  // ── Guidelines (subtype-based NCCN pointer) ──
+  const subtypeGuidelines = {
+    'Luminal A':       'NCCN: HR+/HER2- early breast cancer. Endocrine therapy preferred; chemotherapy based on recurrence score and nodal status.',
+    'Luminal B':       'NCCN: HR+/HER2+ or high-risk HR+/HER2-. Consider dual HER2 blockade if HER2+; adjuvant chemotherapy followed by endocrine therapy.',
+    'HER2-enriched':   'NCCN: HER2+ breast cancer. Neoadjuvant pertuzumab + trastuzumab + chemotherapy (TCHP). T-DM1 if residual disease.',
+    'Triple Negative': 'NCCN: TNBC. Neoadjuvant AC-T ± pembrolizumab (PD-L1 status). Olaparib maintenance if BRCA1/2 germline mutation.',
+  }
+  const guidelines = subtypeGuidelines[c.molecular_subtype]
+    ?? `NCCN: Stage ${c.ajcc_stage ?? 'unknown'} breast cancer. Refer to current guidelines for ${receptorString(c)} profile.`
+
+  // ── Trials ──
+  const trials = c.molecular_subtype
+    ? `Trial eligibility search pending agent run. Profile: ${receptorString(c)}, ${c.molecular_subtype}, ${c.ajcc_stage ?? 'stage unknown'}. TrialAgent will query ClinicalTrials.gov on next board run.`
+    : 'Molecular subtype unclassified. Trial matching requires complete receptor status.'
+
+  // ── Data gaps ──
+  const dataGaps = []
+  if (!c.molecular_subtype) dataGaps.push({ message: 'Molecular subtype unclassified — ER/PR/HER2 IHC data may be incomplete.' })
+  if (!c.ajcc_stage || c.ajcc_stage === 'Stage X') dataGaps.push({ message: 'AJCC stage is unknown or unresolved — staging workup may be incomplete.' })
+  if (!c.her2_ihc_score && c.her2_status === 'Positive') dataGaps.push({ message: 'HER2 IHC score not recorded — FISH confirmation recommended.' })
+
+  return {
+    ...base,
+    presentation,
+    previousTreatment,
+    pathology,
+    radiology,
+    guidelines,
+    trials,
+    dataGaps,
+    boardHistory: 'TCGA research case. No prior board session recorded in this system.',
+  }
+}
+
+// ─── API functions ────────────────────────────────────────────────────────────
+
+export async function getPatients({ limit = 4, subtype = null, hasData = true } = {}) {
+  const params = new URLSearchParams({ limit })
+  if (subtype) params.set('subtype', subtype)
+  if (hasData) params.set('has_data', 'true')
+  const res = await fetch(`${BASE_URL}/cases?${params}`)
+  if (!res.ok) throw new Error(`GET /cases failed: ${res.status}`)
+  const data = await res.json()
+  return data.items.map(mapApiCase)
 }
 
 export async function getPatient(id) {
-  const base = PATIENTS.find(p => p.id === id)
-  if (!base) throw new Error(`Patient ${id} not found`)
-  return { ...structuredClone(base), ...structuredClone(CASE_DATA[id] ?? {}) }
+  const res = await fetch(`${BASE_URL}/cases/${encodeURIComponent(id)}`)
+  if (!res.ok) throw new Error(`Case ${id} not found`)
+  const c = await res.json()
+  return mapApiCaseFull(c)
 }
 
 export async function getAgents(patientId) {
@@ -223,6 +333,27 @@ export async function getAgents(patientId) {
 
 export async function getPostMeeting(patientId) {
   return structuredClone(POST_MEETING[patientId] ?? null)
+}
+
+export function imageUrl(path) {
+  return `${BASE_URL}${path}`
+}
+
+export async function getPatientImages(id, type = 'mri', limit = 12) {
+  const res = await fetch(`${BASE_URL}/cases/${encodeURIComponent(id)}/images?type=${type}&limit=${limit}`)
+  if (!res.ok) return []
+  const data = await res.json()
+  return data.images ?? []
+}
+
+export async function getCaseGenomics(id, genes) {
+  const params = new URLSearchParams()
+  if (genes?.length) params.set('genes', genes.join(','))
+  const res = await fetch(`${BASE_URL}/cases/${encodeURIComponent(id)}/genomics?${params}`)
+  if (!res.ok) throw new Error(`GET /cases/${id}/genomics failed: ${res.status}`)
+  const data = await res.json()
+  if (!data.has_data) throw new Error('No genomic data available for this case.')
+  return data
 }
 
 export async function saveNote(patientId, noteContent) {

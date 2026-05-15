@@ -1,7 +1,7 @@
 <script setup>
 defineProps({
   patients: { type: Array, required: true },
-  activeId: { type: String, required: true },
+  activeId: { type: String, default: null },
 })
 
 defineEmits(['select'])

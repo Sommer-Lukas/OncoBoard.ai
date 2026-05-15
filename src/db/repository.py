@@ -168,18 +168,22 @@ async def list_cases(
     limit: int = 100,
     offset: int = 0,
     molecular_subtype: str | None = None,
+    has_data: bool = False,
 ) -> list[Case]:
+    conditions: list[str] = []
+    params: list[object] = []
+
     if molecular_subtype:
-        cur = await db.execute(
-            f"SELECT {CASE_COLUMNS} FROM cases WHERE molecular_subtype = ? "
-            "ORDER BY case_id LIMIT ? OFFSET ?",
-            (molecular_subtype, limit, offset),
-        )
-    else:
-        cur = await db.execute(
-            f"SELECT {CASE_COLUMNS} FROM cases ORDER BY case_id LIMIT ? OFFSET ?",
-            (limit, offset),
-        )
+        conditions.append("molecular_subtype = ?")
+        params.append(molecular_subtype)
+    if has_data:
+        conditions.append("case_id IN (SELECT case_id FROM case_genomics)")
+
+    where = f"WHERE {' AND '.join(conditions)}" if conditions else ""
+    cur = await db.execute(
+        f"SELECT {CASE_COLUMNS} FROM cases {where} ORDER BY case_id LIMIT ? OFFSET ?",
+        (*params, limit, offset),
+    )
     rows = await cur.fetchall()
     return [_row_to_case(r) for r in rows]
 
@@ -224,6 +228,13 @@ async def get_genomics(
         copy_numbers=json.loads(row["copy_numbers_json"]),
         created_at=row["created_at"],
     )
+
+
+async def has_genomics(db: aiosqlite.Connection, case_id: str) -> bool:
+    cur = await db.execute(
+        "SELECT 1 FROM case_genomics WHERE case_id = ? LIMIT 1", (case_id,)
+    )
+    return await cur.fetchone() is not None
 
 
 async def get_gene_copy_numbers(

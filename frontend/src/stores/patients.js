@@ -13,6 +13,9 @@ export const usePatientsStore = defineStore('patients', () => {
   const loading = ref(false)
   const error = ref(null)
 
+  // Filter state — mutate from Dashboard, read in loadPatients
+  const subtypeFilter = ref(null)
+
   const activePatient = computed(() =>
     patients.value.find(p => p.id === activeId.value) ?? null
   )
@@ -21,7 +24,7 @@ export const usePatientsStore = defineStore('patients', () => {
     loading.value = true
     error.value = null
     try {
-      patients.value = await getPatients()
+      patients.value = await getPatients({ limit: 4, subtype: subtypeFilter.value })
       if (!activeId.value && patients.value.length) {
         activeId.value = patients.value[0].id
       }
@@ -34,9 +37,14 @@ export const usePatientsStore = defineStore('patients', () => {
 
   async function loadCaseData(id) {
     if (caseCache.value[id]) return caseCache.value[id]
-    const data = await getPatient(id)
-    caseCache.value[id] = data
-    return data
+    try {
+      const data = await getPatient(id)
+      caseCache.value[id] = data
+      return data
+    } catch (e) {
+      error.value = e.message
+      return null
+    }
   }
 
   async function loadPostMeeting(id) {
@@ -56,6 +64,7 @@ export const usePatientsStore = defineStore('patients', () => {
     activePatient,
     loading,
     error,
+    subtypeFilter,
     loadPatients,
     loadCaseData,
     loadPostMeeting,

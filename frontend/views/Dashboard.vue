@@ -24,6 +24,20 @@ const statusConfig = {
   pending:  { bg: '#F8F9FA', color: '#80868B', dot: '#DADCE0' },
 }
 
+const SUBTYPES = [
+  { label: 'All',             value: null },
+  { label: 'Luminal A',       value: 'Luminal A' },
+  { label: 'Luminal B',       value: 'Luminal B' },
+  { label: 'HER2-enriched',   value: 'HER2-enriched' },
+  { label: 'Triple Negative', value: 'Triple Negative' },
+]
+
+function setSubtype(value) {
+  store.subtypeFilter = value
+  store.activeId = null
+  store.loadPatients()
+}
+
 const activePatients = computed(() => store.patients.filter(p => p.boardStatus === 'active'))
 </script>
 
@@ -63,9 +77,22 @@ const activePatients = computed(() => store.patients.filter(p => p.boardStatus =
         </template>
       </div>
 
-      <div class="section-label" style="margin-top: 32px">Cases</div>
+      <div class="filter-row" style="margin-top: 32px">
+        <div class="section-label" style="margin-bottom: 0">Cases</div>
+        <div class="subtype-chips">
+          <button
+            v-for="s in SUBTYPES"
+            :key="s.label"
+            class="subtype-chip"
+            :class="{ active: store.subtypeFilter === s.value }"
+            @click="setSubtype(s.value)"
+          >{{ s.label }}</button>
+        </div>
+        <div class="case-count">Showing {{ store.patients.length }} of 4</div>
+      </div>
 
-      <div v-if="store.loading" class="loading-state">Loading patients…</div>
+      <div v-if="store.loading" class="loading-state">Loading cases…</div>
+      <div v-else-if="store.error" class="loading-state" style="color:#D93025">{{ store.error }}</div>
 
       <div v-else class="case-list">
         <div
@@ -156,6 +183,23 @@ const activePatients = computed(() => store.patients.filter(p => p.boardStatus =
 .phase-desc  { font-size: 12px; color: #5F6368; }
 .phase-chip  { padding: 3px 10px; border-radius: 999px; font-size: 12px; font-weight: 500; white-space: nowrap; flex-shrink: 0; }
 .connector   { flex-shrink: 0; }
+
+/* Filter toolbar */
+.filter-row {
+  display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin-bottom: 12px;
+}
+
+.subtype-chips { display: flex; gap: 6px; flex-wrap: wrap; }
+
+.subtype-chip {
+  padding: 5px 14px; border-radius: 999px; font-size: 13px; font-weight: 500;
+  border: 1px solid #DADCE0; background: #fff; color: #5F6368;
+  cursor: pointer; font-family: 'Roboto', sans-serif; transition: all 150ms;
+}
+.subtype-chip:hover { background: #F8F9FA; border-color: #BDC1C6; }
+.subtype-chip.active { background: #D2E3FC; border-color: #1A73E8; color: #174EA6; }
+
+.case-count { margin-left: auto; font-size: 12px; color: #80868B; white-space: nowrap; }
 
 /* Case list */
 .loading-state { font-size: 14px; color: #5F6368; padding: 24px 0; }

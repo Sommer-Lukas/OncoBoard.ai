@@ -70,13 +70,19 @@ function closeDatabase() {
     <!-- Main area -->
     <div class="main-content">
       <template v-if="caseData">
-        <PatientHeader
-          :patient-id="caseData.id"
-          :name="caseData.name"
-          :age="caseData.age"
-          :stage="caseData.stage"
-          :receptors="caseData.receptors"
-        />
+        <div style="display:flex; align-items:center; justify-content:space-between; border-bottom: 1px solid #DADCE0; background:#fff; padding-right:16px; flex-shrink:0;">
+          <PatientHeader
+            :patient-id="caseData.id"
+            :name="caseData.name"
+            :age="caseData.age"
+            :stage="caseData.stage"
+            :receptors="caseData.receptors"
+          />
+          <button class="view-data-btn" @click="openDatabase()">
+            <span class="material-symbols-outlined" style="font-size:16px">table_view</span>
+            View Data
+          </button>
+        </div>
 
         <div class="container">
           <template v-if="caseData.dataGaps?.length">
@@ -121,7 +127,6 @@ function closeDatabase() {
   <PatientDatabase
     v-if="showDatabase && caseData"
     :patient="{ id: caseData.id, name: caseData.name }"
-    :filter-agent="databaseFilter"
     @close="closeDatabase"
   />
 </template>
@@ -200,6 +205,15 @@ function closeDatabase() {
   font-size: 14px; font-weight: 500; padding: 0; margin-left: 4px;
   font-family: 'Roboto', sans-serif; text-decoration: underline;
 }
+
+.view-data-btn {
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 7px 16px; border-radius: 999px; border: 1px solid #DADCE0;
+  font-size: 13px; font-weight: 500; cursor: pointer;
+  background: #fff; color: #202124; font-family: 'Roboto', sans-serif;
+  white-space: nowrap; transition: background 150ms;
+}
+.view-data-btn:hover { background: #F8F9FA; }
 
 .section-title { font-size: 20px; font-weight: 500; color: #202124; margin-bottom: 16px; }
 
