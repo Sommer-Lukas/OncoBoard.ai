@@ -11,8 +11,8 @@ The build plan that drives these stages lives in `~/.claude/plans/hazy-snacking-
 | — | Reconcile ARCHITECTURE.md with the real dataset | ✅ landed |
 | 3 | Data seeding (synthetic + TCGA-BRCA) | ✅ landed |
 | 4 | Agent framework (BaseAgent + MockGeminiClient) | ✅ landed |
-| 5 | Vertical slice: CaseCompiler + SummaryAgent + SSE route | ⏳ next |
-| 6 | Test infrastructure (pytest + mocked Gemini) | ⏳ pending |
+| 5 | Vertical slice: CaseCompiler + SummaryAgent + SSE route | ✅ landed |
+| 6 | Test infrastructure (pytest + mocked Gemini) | ⏳ next |
 
 > **How to add an entry:** append a new `## Stage N — Title` section at the bottom following the template at the end of this file. Keep entries short — link to the commit for code, document only the *why* and *what changed*.
 
@@ -215,8 +215,51 @@ $env:GEMINI_MOCK="1"
 
 ---
 
-## Up next — Stage 5
-**Vertical slice.** `CaseCompiler` (Flash, DB-only) chained into `SummaryAgent` (Flash, depends on CaseCompiler output) through a `POST /cases/{id}/pre-meeting/run` SSE route. Proves the whole pipeline shape — DB → Agent → DB write → FastAPI SSE — before scaling out to the remaining 11 agents.
+## Stage 5 — Pre-meeting vertical slice
+- **Branch:** `feature/stage-5-vertical-slice` (cut from `master`)
+- **Commit:** `15be644` (squash-merged via PR #10)
+- **Landed:** 2026-05-15
+- **PR:** https://github.com/RaneemK-commits/OncoBoard.ai/pull/10
+
+### What landed
+| File | Purpose |
+|---|---|
+| `src/agents/case_compiler.py` | DB-only agent: assembles clinical bundle + genomics summary (notable breast-cancer gene panel) + file inventory; flags critical/warning data gaps; sets `ready_for_review` |
+| `src/agents/summary_agent.py` | Consumes the latest CaseCompiler output, prompts Gemini with a strict JSON response schema, returns a structured one-page narrative. Hard-fails if CaseCompiler hasn't run |
+| `src/agents/pipeline.py` | `run_pre_meeting()` — runs both agents under one shared `run_id`, yields `PipelineEvent`s for SSE. Hardcoded order per ARCHITECTURE.md |
+| `src/api/pipeline.py` | `POST /cases/{id}/pre-meeting/run` → `StreamingResponse` `text/event-stream`; 404 on missing case; opens its own DB connection for the stream lifetime |
+| `src/main.py` | Mounts pipeline router; widened CORS to allow `POST` (was GET-only) |
+| `src/db/repository.py` | New `get_genomics_any()` — source-agnostic lookup |
+| `scripts/smoke_stage5.py` | 3-phase end-to-end test |
+| `scripts/db_status.py` | sqlite-only DB inspector for setup debugging |
+
+### Decisions worth knowing
+- **Read-only case endpoints were already delivered** by a teammate in `src/api/cases.py` (incl. `/agents/{name}/latest`), so this slice is agents + pipeline + SSE only — not the full original plan.
+- **`src/api/pipeline.py` opens its own DB connection inside the stream generator.** The request-scoped `get_db()` connection is torn down when the handler returns — before SSE finishes streaming — so relying on it would break mid-stream.
+- **Flat `src/api/` convention** (not nested `src/api/routes/`) to match the teammate's existing `cases.py`.
+- **CORS was GET-only** before this — the SSE route is `POST`, so the browser preflight would have blocked the frontend. Fixed here.
+
+### Bugs caught during the slice
+- **CaseCompiler genomics blind spot:** it called `repo.get_genomics()` which defaults to `source="CNV_RAW"`, so every synthetic-seeded case (`source="synthetic"`) reported "no genomics." Fixed with the source-agnostic `get_genomics_any()`.
+
+### Verify locally
+```powershell
+.\.venv\Scripts\python.exe -m src.db.init_db
+.\.venv\Scripts\python.exe -m src.data.seed_synthetic
+$env:GEMINI_MOCK="1"
+.\.venv\Scripts\python.exe scripts\smoke_stage5.py
+# Expected final line: "SMOKE TEST PASSED"
+```
+Or run it live: `uvicorn src.main:app` then `POST /cases/SYN-002/pre-meeting/run` and watch the SSE events stream.
+
+### Unblocks
+- The remaining 11 agents (pre/during/post-meeting) are now template work against `BaseAgent` + the pipeline runner pattern.
+- Stage 6 (test infrastructure) — the smoke tests become the seed for the pytest suite.
+
+---
+
+## Up next — Stage 6
+**Test infrastructure.** Promote the per-stage smoke scripts into a real `pytest` suite under `tests/` with shared fixtures (temp DB, seeded synthetic data, injected `MockGeminiClient`). Mocked Gemini means the suite runs in CI with no API key and no quota burn.
 
 ---
 
