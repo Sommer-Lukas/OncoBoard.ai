@@ -109,5 +109,7 @@ data/*.csv
 data/*.zip
 data/raw/
 data/processed/
+# Safety net: never commit extracted dataset images, wherever they land
+**/MRI_and_SVS_Patches/
 *.db
 *.sqlite

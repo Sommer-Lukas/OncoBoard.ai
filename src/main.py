@@ -6,8 +6,6 @@ from src.api.cases import router as cases_router
 from src.config import get_settings
 from src.logging_setup import configure_logging, get_logger
 
-_IMAGES_DIR = "src/data/MRI_and_SVS_Patches/MRI_and_SVS_Patches"
-
 
 def create_app() -> FastAPI:
     configure_logging()
@@ -24,7 +22,23 @@ def create_app() -> FastAPI:
     )
 
     app.include_router(cases_router)
-    app.mount("/images", StaticFiles(directory=_IMAGES_DIR), name="images")
+
+    images_dir = settings.images_dir
+    if images_dir.is_dir():
+        app.mount("/images", StaticFiles(directory=str(images_dir)), name="images")
+        images_mounted = True
+    else:
+        # Don't crash the app just because the heavy image set isn't extracted.
+        # The /cases/{id}/images endpoint already returns [] in this case.
+        logger.warning(
+            "images_dir_missing",
+            extra={"extra_fields": {
+                "event": "images_dir_missing",
+                "images_dir": str(images_dir),
+                "hint": "Extract MRI/SVS patches here or set IMAGES_DIR; /images is disabled until then.",
+            }},
+        )
+        images_mounted = False
 
     @app.get("/health")
     async def health() -> dict[str, str]:
@@ -32,7 +46,12 @@ def create_app() -> FastAPI:
 
     logger.info(
         "app_startup",
-        extra={"extra_fields": {"event": "app_startup", "db_path": str(settings.db_path)}},
+        extra={"extra_fields": {
+            "event": "app_startup",
+            "db_path": str(settings.db_path),
+            "images_dir": str(images_dir),
+            "images_mounted": images_mounted,
+        }},
     )
     return app
 

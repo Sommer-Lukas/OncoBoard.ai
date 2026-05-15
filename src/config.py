@@ -20,6 +20,14 @@ class Settings(BaseSettings):
 
     db_path: Path = Field(default=Path("./oncoboard.db"), alias="DB_PATH")
 
+    # Where the extracted TCGA MRI/SVS image patches live. Gitignored by
+    # convention (data/raw/...). The app boots fine if this is absent — the
+    # /images mount and image endpoints just return empty until it exists.
+    images_dir: Path = Field(
+        default=Path("data/raw/MRI_and_SVS_Patches"),
+        alias="IMAGES_DIR",
+    )
+
     log_level: str = Field(default="info", alias="LOG_LEVEL")
 
     clinicaltrials_base_url: str = Field(

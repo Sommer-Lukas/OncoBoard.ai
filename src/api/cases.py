@@ -1,18 +1,16 @@
 """Read-only case API. All DB access goes through repository helpers."""
-from pathlib import Path
 from typing import Annotated
 
 import aiosqlite
 from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel
 
+from src.config import get_settings
 from src.db import repository
 from src.db.connection import get_db
 from src.db.models import AgentOutput, Case, CaseFile
 
 router = APIRouter(prefix="/cases", tags=["cases"])
-
-_IMAGES_ROOT = Path("src/data/MRI_and_SVS_Patches/MRI_and_SVS_Patches")
 
 _Db = Annotated[aiosqlite.Connection, Depends(get_db)]
 
@@ -93,8 +91,9 @@ async def list_case_images(
     case_id: str,
     type: Annotated[str, Query(description="'mri' or 'svs'")] = "mri",
 ) -> ImagesResponse:
-    patient_dir = (_IMAGES_ROOT / case_id).resolve()
-    if not patient_dir.is_dir() or _IMAGES_ROOT.resolve() not in patient_dir.parents:
+    images_root = get_settings().images_dir
+    patient_dir = (images_root / case_id).resolve()
+    if not patient_dir.is_dir() or images_root.resolve() not in patient_dir.parents:
         return ImagesResponse(case_id=case_id, type=type, images=[])
 
     paths: list[str] = []
