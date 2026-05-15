@@ -50,14 +50,14 @@ A note-draft agent produces a structured tumor board note ready for EHR entry. A
 
 | Phase | Agent | Model | Role |
 |---|---|---|---|
-| Pre | `CaseCompiler` | Flash | Pulls records, flags missing data |
+| Pre | `CaseCompiler` | deterministic · no LLM | Pulls records, flags missing data |
 | Pre | `RadiologyAgent` | Vision | Imaging findings in BI-RADS |
 | Pre | `PathologyAgent` | Pro | Biopsy + genomic interpretation (CAP synoptic format) |
 | Pre | `GuidelineAgent` | Pro | NCCN / ESMO protocol match |
 | Pre | `TrialAgent` | Flash | ClinicalTrials.gov + PubMed eligibility match |
 | Pre | `HistoryCaseAgent` | Pro + embeddings | Analogous past cases by semantic similarity |
 | Pre | `SummaryAgent` | Flash | One-page clinical narrative |
-| Live | `DisplayAgent` | (formatting only) | Real-time case display to the room |
+| Live | `DisplayAgent` | deterministic · no LLM | Real-time case display to the room (formatting only) |
 | Live | `TranscriptionAgent` | Flash | Speaker-tagged transcript |
 | Live | `RecommendationAgent` | Pro | Decision-moment capture |
 | Post | `NoteDraftAgent` | Pro | Tumor board note |
