@@ -92,7 +92,6 @@ class ImagesResponse(BaseModel):
 async def list_case_images(
     case_id: str,
     type: Annotated[str, Query(description="'mri' or 'svs'")] = "mri",
-    limit: Annotated[int, Query(ge=1, le=200)] = 12,
 ) -> ImagesResponse:
     patient_dir = (_IMAGES_ROOT / case_id).resolve()
     if not patient_dir.is_dir() or _IMAGES_ROOT.resolve() not in patient_dir.parents:
@@ -103,7 +102,7 @@ async def list_case_images(
     if type == "svs":
         target = patient_dir / f"{case_id}-01Z-00-DX1SVS_patches"
         if target.is_dir():
-            for f in sorted(target.glob("*.jpg"))[:limit]:
+            for f in sorted(target.glob("*.jpg")):
                 paths.append(f"/images/{case_id}/{target.name}/{f.name}")
 
     else:  # mri
@@ -114,10 +113,6 @@ async def list_case_images(
                     continue
                 for f in sorted(series.glob("*.jpg")):
                     paths.append(f"/images/{case_id}/{target.name}/{series.name}/{f.name}")
-                    if len(paths) >= limit:
-                        break
-                if len(paths) >= limit:
-                    break
 
     return ImagesResponse(case_id=case_id, type=type, images=paths)
 

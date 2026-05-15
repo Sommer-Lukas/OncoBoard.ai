@@ -339,8 +339,8 @@ export function imageUrl(path) {
   return `${BASE_URL}${path}`
 }
 
-export async function getPatientImages(id, type = 'mri', limit = 12) {
-  const res = await fetch(`${BASE_URL}/cases/${encodeURIComponent(id)}/images?type=${type}&limit=${limit}`)
+export async function getPatientImages(id, type = 'mri') {
+  const res = await fetch(`${BASE_URL}/cases/${encodeURIComponent(id)}/images?type=${type}`)
   if (!res.ok) return []
   const data = await res.json()
   return data.images ?? []

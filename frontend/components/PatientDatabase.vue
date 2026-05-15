@@ -1,6 +1,7 @@
 <script setup>
 import { ref, onMounted } from 'vue'
 import { getPatient, getPatientImages, getCaseGenomics, imageUrl } from '../src/services/api.js'
+import ImageLightbox from './ImageLightbox.vue'
 
 const props = defineProps({
   patient: { type: Object, required: true },
@@ -31,13 +32,23 @@ const svsImages = ref([])
 const mriLoading = ref(false)
 const svsLoading = ref(false)
 
+// ── Lightbox ──
+const lbImages = ref([])
+const lbIndex  = ref(null)
+
+function openLightbox(images, idx) {
+  lbImages.value = images
+  lbIndex.value  = idx
+}
+function closeLightbox() { lbIndex.value = null }
+
 onMounted(async () => {
   caseData.value = await getPatient(props.patient.id).catch(() => null)
   mriLoading.value = true
   svsLoading.value = true
   const [mri, svs] = await Promise.all([
-    getPatientImages(props.patient.id, 'mri', 12),
-    getPatientImages(props.patient.id, 'svs', 16),
+    getPatientImages(props.patient.id, 'mri'),
+    getPatientImages(props.patient.id, 'svs'),
   ])
   mriImages.value = mri
   svsImages.value = svs
@@ -163,7 +174,12 @@ function cnLabel(v) {
           <div v-if="mriLoading" class="empty-state">Loading images…</div>
           <div v-else-if="!mriImages.length" class="empty-state">No MRI data available for this case.</div>
           <div v-else class="image-grid">
-            <div v-for="path in mriImages" :key="path" class="image-cell">
+            <div
+              v-for="(path, idx) in mriImages"
+              :key="path"
+              class="image-cell"
+              @click="openLightbox(mriImages, idx)"
+            >
               <img :src="imageUrl(path)" :alt="path.split('/').pop()" loading="lazy" />
             </div>
           </div>
@@ -174,7 +190,12 @@ function cnLabel(v) {
           <div v-if="svsLoading" class="empty-state">Loading slides…</div>
           <div v-else-if="!svsImages.length" class="empty-state">No pathology slides available for this case.</div>
           <div v-else class="image-grid tight">
-            <div v-for="path in svsImages" :key="path" class="image-cell">
+            <div
+              v-for="(path, idx) in svsImages"
+              :key="path"
+              class="image-cell"
+              @click="openLightbox(svsImages, idx)"
+            >
               <img :src="imageUrl(path)" :alt="path.split('/').pop()" loading="lazy" />
             </div>
           </div>
@@ -183,6 +204,14 @@ function cnLabel(v) {
       </div>
     </div>
   </div>
+
+  <ImageLightbox
+    v-if="lbIndex !== null"
+    :images="lbImages"
+    :index="lbIndex"
+    @close="closeLightbox"
+    @navigate="lbIndex = $event"
+  />
 </template>
 
 <style scoped>
@@ -278,7 +307,9 @@ function cnLabel(v) {
 .image-cell {
   border-radius: 8px; overflow: hidden; background: #F1F3F4;
   aspect-ratio: 1; display: flex; align-items: center; justify-content: center;
+  cursor: pointer; transition: opacity 150ms;
 }
+.image-cell:hover { opacity: 0.85; }
 .image-cell img { width: 100%; height: 100%; object-fit: cover; display: block; }
 
 .empty-state {
