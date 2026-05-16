@@ -114,18 +114,59 @@ function cnLabel(v) {
 
       <!-- Summary -->
       <template v-if="activeTab === 'summary'">
-        <div class="content-card">
-          <div class="field-label">Diagnosis</div>
-          <div class="field-value">{{ caseData.diagnosis }}</div>
-        </div>
-        <div class="content-card">
-          <div class="field-label">Presentation</div>
-          <div class="field-value">{{ caseData.presentation }}</div>
-        </div>
-        <div class="content-card">
-          <div class="field-label">Previous Treatment</div>
-          <div class="field-value">{{ caseData.previousTreatment }}</div>
-        </div>
+        <!-- Agent narrative takes priority when available -->
+        <template v-if="caseData.summaryNarrative">
+          <div class="specialty-header">
+            <div class="specialty-badge summary">
+              <span class="material-symbols-outlined" style="font-size: 16px">description</span>
+              SummaryAgent
+            </div>
+          </div>
+          <div class="content-card">
+            <div class="field-label">Clinical Narrative</div>
+            <div class="field-value">{{ caseData.summaryNarrative }}</div>
+          </div>
+          <div v-if="caseData.summaryKeyPoints?.length" class="content-card">
+            <div class="field-label">Key Points</div>
+            <ul class="key-points-list">
+              <li v-for="(pt, i) in caseData.summaryKeyPoints" :key="i">{{ pt }}</li>
+            </ul>
+          </div>
+          <div class="content-card">
+            <div class="field-label">Diagnosis</div>
+            <div class="field-value">{{ caseData.diagnosis }}</div>
+          </div>
+          <div class="content-card">
+            <div class="field-label">Previous Treatment</div>
+            <div class="field-value">{{ caseData.previousTreatment }}</div>
+          </div>
+        </template>
+        <template v-else>
+          <!-- Raw DB fields — shown until SummaryAgent produces a narrative -->
+          <div class="specialty-header">
+            <div class="specialty-badge summary">
+              <span class="material-symbols-outlined" style="font-size: 16px">description</span>
+              SummaryAgent
+            </div>
+          </div>
+          <div class="agent-pending-state">
+            <span class="material-symbols-outlined" style="font-size: 32px; color: #BDC1C6">description</span>
+            <div class="agent-pending-title">SummaryAgent has not run</div>
+            <div class="agent-pending-sub">Use "Run Pre-Meeting" above to generate a clinical narrative. Raw database fields are shown below for reference.</div>
+          </div>
+          <div class="content-card raw-field">
+            <div class="field-label">Diagnosis <span class="raw-tag">DB</span></div>
+            <div class="field-value">{{ caseData.diagnosis }}</div>
+          </div>
+          <div class="content-card raw-field">
+            <div class="field-label">Presentation <span class="raw-tag">DB</span></div>
+            <div class="field-value">{{ caseData.presentation }}</div>
+          </div>
+          <div class="content-card raw-field">
+            <div class="field-label">Previous Treatment <span class="raw-tag">DB</span></div>
+            <div class="field-value">{{ caseData.previousTreatment }}</div>
+          </div>
+        </template>
       </template>
 
       <!-- Radiology -->
@@ -134,11 +175,37 @@ function cnLabel(v) {
           <div class="specialty-badge radiology">
             <span class="material-symbols-outlined" style="font-size: 16px">image</span>
             RadiologyAgent
+            <span v-if="caseData.radiologyFull?.overall_birads_category" class="agent-meta">
+              · {{ caseData.radiologyFull.overall_birads_category }}
+            </span>
           </div>
         </div>
-        <div class="content-card">
-          <div class="field-label">Imaging Findings</div>
-          <div class="field-value">{{ caseData.radiology }}</div>
+        <template v-if="caseData.radiologyFull">
+          <div class="content-card">
+            <div class="field-label">Radiologist Impression</div>
+            <div class="field-value">{{ caseData.radiology }}</div>
+          </div>
+          <div class="content-card" v-if="caseData.radiologyFull.mass_findings?.length">
+            <div class="field-label">Mass Findings</div>
+            <ul class="key-points-list">
+              <li v-for="(f, i) in caseData.radiologyFull.mass_findings" :key="i">{{ f }}</li>
+            </ul>
+          </div>
+          <div class="content-card" v-if="caseData.radiologyFull.calcification_findings?.length">
+            <div class="field-label">Calcification Findings</div>
+            <ul class="key-points-list">
+              <li v-for="(f, i) in caseData.radiologyFull.calcification_findings" :key="i">{{ f }}</li>
+            </ul>
+          </div>
+          <div class="content-card" v-if="caseData.radiologyFull.breast_density">
+            <div class="field-label">Breast Density</div>
+            <div class="field-value">{{ caseData.radiologyFull.breast_density }}</div>
+          </div>
+        </template>
+        <div v-else class="agent-pending-state">
+          <span class="material-symbols-outlined" style="font-size: 32px; color: #BDC1C6">image_search</span>
+          <div class="agent-pending-title">RadiologyAgent has not run</div>
+          <div class="agent-pending-sub">Use "Run Pre-Meeting" above to generate the BI-RADS analysis for this patient.</div>
         </div>
         <div class="field-label section-gap">MRI Scans</div>
         <div v-if="imagesLoading" class="empty-state">Loading images…</div>
@@ -163,9 +230,32 @@ function cnLabel(v) {
             PathologyAgent
           </div>
         </div>
-        <div class="content-card">
-          <div class="field-label">Pathology Report</div>
-          <div class="field-value">{{ caseData.pathology }}</div>
+        <template v-if="caseData.pathologyFull">
+          <div class="content-card">
+            <div class="field-label">CAP Synoptic Summary</div>
+            <div class="field-value">{{ caseData.pathology }}</div>
+          </div>
+          <div class="content-card" v-if="caseData.pathologyFull.driver_alterations?.length">
+            <div class="field-label">Driver Alterations</div>
+            <ul class="key-points-list">
+              <li v-for="(a, i) in caseData.pathologyFull.driver_alterations" :key="i">{{ a }}</li>
+            </ul>
+          </div>
+          <div class="content-card" v-if="caseData.pathologyFull.prognostic_markers?.length">
+            <div class="field-label">Prognostic Markers</div>
+            <ul class="key-points-list">
+              <li v-for="(m, i) in caseData.pathologyFull.prognostic_markers" :key="i">{{ m }}</li>
+            </ul>
+          </div>
+          <div class="content-card" v-if="caseData.pathologyFull.pathologist_comment">
+            <div class="field-label">Pathologist Comment</div>
+            <div class="field-value">{{ caseData.pathologyFull.pathologist_comment }}</div>
+          </div>
+        </template>
+        <div v-else class="agent-pending-state">
+          <span class="material-symbols-outlined" style="font-size: 32px; color: #BDC1C6">biotech</span>
+          <div class="agent-pending-title">PathologyAgent has not run</div>
+          <div class="agent-pending-sub">Use "Run Pre-Meeting" above to generate the CAP synoptic report for this patient.</div>
         </div>
         <div class="field-label section-gap">Pathology Slides (SVS)</div>
         <div v-if="imagesLoading" class="empty-state">Loading slides…</div>
@@ -212,12 +302,47 @@ function cnLabel(v) {
         <div class="specialty-header">
           <div class="specialty-badge guidelines">
             <span class="material-symbols-outlined" style="font-size: 16px">clinical_notes</span>
-            GuidelineAgent · NCCN
+            GuidelineAgent<span v-if="caseData.guidelineFull?.matched_guideline"> · {{ caseData.guidelineFull.matched_guideline }}</span>
           </div>
         </div>
-        <div class="content-card">
-          <div class="field-label">NCCN Recommendation</div>
-          <div class="field-value">{{ caseData.guidelines }}</div>
+        <template v-if="caseData.guidelineFull">
+          <div class="content-card">
+            <div class="field-label">Pathway</div>
+            <div class="field-value">{{ caseData.guidelineFull.guideline_pathway }}</div>
+          </div>
+          <div class="content-card">
+            <div class="field-label">Protocol Rationale</div>
+            <div class="field-value">{{ caseData.guidelineFull.protocol_rationale }}</div>
+          </div>
+          <div class="content-card" v-if="caseData.guidelineFull.systemic_therapy_options?.length">
+            <div class="field-label">Systemic Therapy Options</div>
+            <ul class="key-points-list">
+              <li v-for="(opt, i) in caseData.guidelineFull.systemic_therapy_options" :key="i">{{ opt }}</li>
+            </ul>
+          </div>
+          <div class="content-card" v-if="caseData.guidelineFull.endocrine_therapy_options?.length">
+            <div class="field-label">Endocrine Therapy Options</div>
+            <ul class="key-points-list">
+              <li v-for="(opt, i) in caseData.guidelineFull.endocrine_therapy_options" :key="i">{{ opt }}</li>
+            </ul>
+          </div>
+          <div class="content-card" v-if="caseData.guidelineFull.radiation_considerations">
+            <div class="field-label">Radiation Considerations</div>
+            <div class="field-value">{{ caseData.guidelineFull.radiation_considerations }}</div>
+          </div>
+          <div class="content-card" v-if="caseData.guidelineFull.surgery_considerations">
+            <div class="field-label">Surgery Considerations</div>
+            <div class="field-value">{{ caseData.guidelineFull.surgery_considerations }}</div>
+          </div>
+          <div class="meta-chips" v-if="caseData.guidelineFull.recommendation_category || caseData.guidelineFull.evidence_level">
+            <span class="chip" v-if="caseData.guidelineFull.recommendation_category">{{ caseData.guidelineFull.recommendation_category }}</span>
+            <span class="chip" v-if="caseData.guidelineFull.evidence_level">{{ caseData.guidelineFull.evidence_level }}</span>
+          </div>
+        </template>
+        <div v-else class="agent-pending-state">
+          <span class="material-symbols-outlined" style="font-size: 32px; color: #BDC1C6">clinical_notes</span>
+          <div class="agent-pending-title">GuidelineAgent has not run</div>
+          <div class="agent-pending-sub">Use "Run Pre-Meeting" above to match this patient to the applicable NCCN pathway.</div>
         </div>
       </template>
 
@@ -227,11 +352,51 @@ function cnLabel(v) {
           <div class="specialty-badge trials">
             <span class="material-symbols-outlined" style="font-size: 16px">science</span>
             TrialAgent
+            <span v-if="caseData.trialFull?.matched_trials?.length" class="agent-meta">
+              · {{ caseData.trialFull.matched_trials.length }} trial(s) matched
+            </span>
           </div>
         </div>
-        <div class="content-card">
-          <div class="field-label">Eligibility & Evidence</div>
-          <div class="field-value">{{ caseData.trials }}</div>
+        <template v-if="caseData.trialFull">
+          <div class="content-card" v-if="caseData.trialFull.agent_notes">
+            <div class="field-label">Agent Notes</div>
+            <div class="field-value">{{ caseData.trialFull.agent_notes }}</div>
+          </div>
+          <template v-if="caseData.trialFull.matched_trials?.length">
+            <div
+              v-for="trial in caseData.trialFull.matched_trials"
+              :key="trial.nct_id"
+              class="content-card trial-card"
+            >
+              <div class="trial-header">
+                <span class="trial-id">{{ trial.nct_id }}</span>
+                <span v-if="trial.phase" class="chip">{{ trial.phase }}</span>
+                <span class="chip status">{{ trial.overall_status }}</span>
+              </div>
+              <div class="trial-title">{{ trial.title }}</div>
+              <div class="field-label" style="margin-top: 10px">Eligibility Delta</div>
+              <div class="field-value">{{ trial.eligibility_delta }}</div>
+              <div v-if="trial.brief_summary" class="trial-summary">{{ trial.brief_summary }}</div>
+            </div>
+          </template>
+          <div v-else class="empty-state">No trials matched for this profile.</div>
+          <template v-if="caseData.trialFull.pubmed_references?.length">
+            <div class="field-label section-gap">PubMed Evidence</div>
+            <div
+              v-for="ref in caseData.trialFull.pubmed_references.slice(0, 3)"
+              :key="ref.pmid"
+              class="content-card pubmed-card"
+            >
+              <span class="trial-id">PMID {{ ref.pmid }}</span>
+              <div v-if="ref.title" class="field-value" style="margin-top: 4px">{{ ref.title }}</div>
+              <div v-if="ref.source" class="pubmed-source">{{ ref.source }}</div>
+            </div>
+          </template>
+        </template>
+        <div v-else class="agent-pending-state">
+          <span class="material-symbols-outlined" style="font-size: 32px; color: #BDC1C6">science</span>
+          <div class="agent-pending-title">TrialAgent has not run</div>
+          <div class="agent-pending-sub">Use "Run Pre-Meeting" above to search ClinicalTrials.gov and PubMed for this patient.</div>
         </div>
       </template>
 
@@ -251,7 +416,8 @@ function cnLabel(v) {
 .case-display {
   display: flex;
   flex-direction: column;
-  height: 100%;
+  flex: 1;
+  min-height: 0;
 }
 
 /* Patient strip */
@@ -344,6 +510,7 @@ function cnLabel(v) {
   font-weight: 500;
 }
 
+.specialty-badge.summary    { background: #E8EAED; color: #3C4043; }
 .specialty-badge.radiology  { background: #D2E3FC; color: #174EA6; }
 .specialty-badge.pathology  { background: #CEEAD6; color: #0D652D; }
 .specialty-badge.genomics   { background: #F3E8FD; color: #6B3FA0; }
@@ -420,4 +587,53 @@ function cnLabel(v) {
   font-size: 14px;
   color: #80868B;
 }
+
+.agent-pending-state {
+  display: flex; flex-direction: column; align-items: center;
+  gap: 8px; padding: 32px 0 20px; text-align: center;
+}
+.agent-pending-title { font-size: 14px; font-weight: 500; color: #5F6368; }
+.agent-pending-sub   { font-size: 13px; color: #80868B; max-width: 360px; line-height: 1.5; }
+
+.raw-field { opacity: 0.7; }
+.raw-tag {
+  display: inline-block; margin-left: 6px;
+  padding: 1px 6px; border-radius: 4px;
+  background: #E8EAED; color: #5F6368;
+  font-size: 10px; font-weight: 600; letter-spacing: 0.3px;
+  vertical-align: middle;
+}
+
+.key-points-list {
+  margin: 0; padding-left: 18px;
+  font-size: 14px; color: #202124; line-height: 1.8;
+}
+
+.agent-meta { font-weight: 400; opacity: 0.75; }
+
+.meta-chips {
+  display: flex; gap: 8px; flex-wrap: wrap;
+  margin-bottom: 12px;
+}
+
+.trial-card { }
+.trial-header {
+  display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
+  margin-bottom: 6px;
+}
+.trial-id {
+  font-family: 'Roboto Mono', monospace;
+  font-size: 12px; font-weight: 500; color: #1967D2;
+}
+.trial-title {
+  font-size: 14px; font-weight: 500; color: #202124; line-height: 1.4;
+}
+.chip.status { background: #E6F4EA; color: #0D652D; }
+.trial-summary {
+  margin-top: 8px; font-size: 13px; color: #5F6368;
+  line-height: 1.5; border-top: 1px solid #F1F3F4; padding-top: 8px;
+}
+
+.pubmed-card { }
+.pubmed-source { font-size: 12px; color: #5F6368; margin-top: 2px; font-style: italic; }
 </style>

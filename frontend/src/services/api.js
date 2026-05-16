@@ -233,23 +233,31 @@ function mapApiCase(c) {
 
 // Derive clinical narrative text from structured TCGA fields.
 // These are the same fields the real agents will read from the DB.
+// TCGA stores TNM values with their prefix already included (e.g. "T1c", "N0 (i-)").
+// Pipe chars in anatomic subdivisions are raw DB notation — normalise to a slash.
+function cleanLocation(raw) {
+  return raw ? raw.replace(/\|/g, ' / ') : 'unspecified location'
+}
+
 function mapApiCaseFull(c) {
   const base = mapApiCase(c)
 
+  const location = cleanLocation(c.anatomic_subdivision)
+
   // ── Presentation ──
-  const location = c.anatomic_subdivision ?? 'unspecified location'
-  const tumourStatus = c.tumor_status === 'WITH TUMOR' ? 'Active disease.' : c.tumor_status ?? ''
+  const tumourStatus = c.tumor_status === 'WITH TUMOR' ? 'Active disease.' : (c.tumor_status === 'TUMOR FREE' ? 'Tumour free.' : (c.tumor_status ?? ''))
+  const tnm = [c.ajcc_t, c.ajcc_n, c.ajcc_m].filter(Boolean).join(' ')
   const presentation = [
     `${c.histological_type ?? 'Breast tumour'}, ${location}.`,
-    `AJCC ${c.ajcc_stage ?? 'stage unknown'} (T${c.ajcc_t ?? '?'} N${c.ajcc_n ?? '?'} M${c.ajcc_m ?? '?'}).`,
+    c.ajcc_stage ? `${c.ajcc_stage}${tnm ? ' (' + tnm + ')' : ''}.` : '',
     tumourStatus,
-    c.menopause_status ? `Menopause status: ${c.menopause_status}.` : '',
+    c.menopause_status ? `Menopause: ${c.menopause_status.split('(')[0].trim()}.` : '',
   ].filter(Boolean).join(' ')
 
   // ── Previous treatment ──
   const drugs = c.treatments?.drugs?.join(', ')
   const surgery = c.surgical_procedure ?? c.treatments?.surgery
-  const nodes = c.lymph_nodes_examined != null ? `${c.lymph_nodes_examined} lymph nodes examined.` : ''
+  const nodes = c.lymph_nodes_examined != null ? `${c.lymph_nodes_examined} lymph node(s) examined.` : ''
   const margins = c.margin_status ? `Margins: ${c.margin_status}.` : ''
   const previousTreatment = [
     surgery ? `Surgery: ${surgery}.` : 'No prior surgical record.',
@@ -267,27 +275,8 @@ function mapApiCaseFull(c) {
     'Genomic copy-number data available via the genomics panel.',
   ].filter(Boolean).join(' ')
 
-  // ── Radiology (staging proxied from AJCC fields) ──
-  const radiology = [
-    `Staging: T${c.ajcc_t ?? '?'} N${c.ajcc_n ?? '?'} M${c.ajcc_m ?? '?'} (${c.ajcc_stage ?? 'unknown stage'}).`,
-    location ? `Primary site: ${location}.` : '',
-    'Refer to imaging series in case files for detailed findings.',
-  ].filter(Boolean).join(' ')
-
-  // ── Guidelines (subtype-based NCCN pointer) ──
-  const subtypeGuidelines = {
-    'Luminal A':       'NCCN: HR+/HER2- early breast cancer. Endocrine therapy preferred; chemotherapy based on recurrence score and nodal status.',
-    'Luminal B':       'NCCN: HR+/HER2+ or high-risk HR+/HER2-. Consider dual HER2 blockade if HER2+; adjuvant chemotherapy followed by endocrine therapy.',
-    'HER2-enriched':   'NCCN: HER2+ breast cancer. Neoadjuvant pertuzumab + trastuzumab + chemotherapy (TCHP). T-DM1 if residual disease.',
-    'Triple Negative': 'NCCN: TNBC. Neoadjuvant AC-T ± pembrolizumab (PD-L1 status). Olaparib maintenance if BRCA1/2 germline mutation.',
-  }
-  const guidelines = subtypeGuidelines[c.molecular_subtype]
-    ?? `NCCN: Stage ${c.ajcc_stage ?? 'unknown'} breast cancer. Refer to current guidelines for ${receptorString(c)} profile.`
-
-  // ── Trials ──
-  const trials = c.molecular_subtype
-    ? `Trial eligibility search pending agent run. Profile: ${receptorString(c)}, ${c.molecular_subtype}, ${c.ajcc_stage ?? 'stage unknown'}. TrialAgent will query ClinicalTrials.gov on next board run.`
-    : 'Molecular subtype unclassified. Trial matching requires complete receptor status.'
+  // ── Radiology — no agent-generated content; RadiologyAgent fills this in ──
+  const radiology = null
 
   // ── Data gaps ──
   const dataGaps = []
@@ -300,9 +289,9 @@ function mapApiCaseFull(c) {
     presentation,
     previousTreatment,
     pathology,
-    radiology,
-    guidelines,
-    trials,
+    radiology,          // null until RadiologyAgent runs
+    guidelines: null,   // null until GuidelineAgent runs
+    trials: null,       // null until TrialAgent runs
     dataGaps,
     boardHistory: 'TCGA research case. No prior board session recorded in this system.',
   }

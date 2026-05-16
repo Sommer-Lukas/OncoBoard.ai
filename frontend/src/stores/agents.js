@@ -61,11 +61,16 @@ export const useAgentsStore = defineStore('agents', () => {
   const agentsByCaseId = ref({})
   // { [caseId]: 'idle' | 'running' | 'complete' | 'error' }
   const pipelineStatus = ref({})
+  // { [caseId]: { [agentName]: rawData } } — full structured output per agent
+  const rawDataByCaseId = ref({})
 
   function initCase(caseId) {
     if (!agentsByCaseId.value[caseId]) {
       agentsByCaseId.value[caseId] = makeIdleAgents()
       pipelineStatus.value[caseId] = 'idle'
+    }
+    if (!rawDataByCaseId.value[caseId]) {
+      rawDataByCaseId.value[caseId] = {}
     }
   }
 
@@ -77,9 +82,14 @@ export const useAgentsStore = defineStore('agents', () => {
     return pipelineStatus.value[caseId] ?? 'idle'
   }
 
+  function getAgentRawData(caseId) {
+    return rawDataByCaseId.value[caseId] ?? {}
+  }
+
   async function runPipeline(caseId) {
     // Reset all agents to idle before starting
     agentsByCaseId.value[caseId] = makeIdleAgents()
+    rawDataByCaseId.value[caseId] = {}
     pipelineStatus.value[caseId] = 'running'
 
     try {
@@ -97,6 +107,10 @@ export const useAgentsStore = defineStore('agents', () => {
             agent.status = 'complete'
             agent.timestamp = 'Just now'
             agent.output = extractSummary(payload.agent, payload.data)
+            // Store full structured output so MeetingRoom can use it
+            if (payload.data) {
+              rawDataByCaseId.value[caseId][payload.agent] = payload.data
+            }
           } else if (payload.status === 'error') {
             agent.status = 'error'
             agent.timestamp = 'Failed'
@@ -137,10 +151,12 @@ export const useAgentsStore = defineStore('agents', () => {
   return {
     agentsByCaseId,
     pipelineStatus,
+    rawDataByCaseId,
     initCase,
     loadAgents,
     getForPatient,
     getPipelineStatus,
+    getAgentRawData,
     runPipeline,
     runningCount,
   }
