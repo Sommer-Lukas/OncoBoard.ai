@@ -3,10 +3,12 @@ import { onMounted, computed } from 'vue'
 import { useRouter } from 'vue-router'
 import { usePatientsStore } from '../src/stores/patients.js'
 import { useAgentsStore } from '../src/stores/agents.js'
+import { useMeetingStore } from '../src/stores/meeting.js'
 
 const router = useRouter()
 const store = usePatientsStore()
 const agentsStore = useAgentsStore()
+const meeting = useMeetingStore()
 
 onMounted(async () => {
   await store.loadPatients()
@@ -17,11 +19,14 @@ const today = new Intl.DateTimeFormat('en-US', {
   weekday: 'long', year: 'numeric', month: 'long', day: 'numeric',
 }).format(new Date())
 
-const phases = [
-  { key: 'pre',     label: 'Pre-Meeting',  icon: 'checklist', route: '/pre-meeting',  status: 'complete', statusLabel: 'Ready'       },
-  { key: 'meeting', label: 'Meeting Room', icon: 'groups',    route: '/meeting',       status: 'active',   statusLabel: 'In Progress' },
-  { key: 'post',    label: 'Post-Meeting', icon: 'task_alt',  route: '/post-meeting',  status: 'pending',  statusLabel: 'Pending'     },
-]
+const phases = computed(() => {
+  const hasDiscussed = store.patients.some(p => meeting.isDiscussed(p.id))
+  return [
+    { key: 'pre',     label: 'Pre-Meeting',  icon: 'checklist', route: '/pre-meeting',  status: 'complete', statusLabel: 'Ready'       },
+    { key: 'meeting', label: 'Meeting Room', icon: 'groups',    route: '/meeting',       status: 'active',   statusLabel: 'In Progress' },
+    { key: 'post',    label: 'Post-Meeting', icon: 'task_alt',  route: '/post-meeting',  status: hasDiscussed ? 'active' : 'pending', statusLabel: hasDiscussed ? 'In Progress' : 'Pending' },
+  ]
+})
 
 const SUBTYPES = [
   { label: 'All',             value: null },
@@ -45,6 +50,12 @@ function runningAgent(id) { return agentsFor(id).find(a => a.status === 'running
 function go(patientId, route) {
   store.setActive(patientId)
   router.push(route)
+}
+
+// Effective display status: discussed overrides the API boardStatus
+function effectiveStatus(patient) {
+  if (meeting.isDiscussed(patient.id)) return 'discussed'
+  return patient.boardStatus
 }
 
 // First running agent across all cases — drives the ticker
@@ -142,7 +153,7 @@ const liveAgent = computed(() => {
             v-for="patient in store.patients"
             :key="patient.id"
             class="case-card"
-            :class="`is-${patient.boardStatus}`"
+            :class="`is-${effectiveStatus(patient)}`"
             @click="go(patient.id, '/pre-meeting')"
           >
             <div class="case-body">
@@ -160,7 +171,9 @@ const liveAgent = computed(() => {
                   <span class="chip">{{ patient.stage }}</span>
                   <span class="chip is-mono">{{ patient.receptors }}</span>
                 </div>
-                <span class="status-pill" :class="`is-${patient.boardStatus}`">{{ patient.boardStatus }}</span>
+                <span class="status-pill" :class="`is-${effectiveStatus(patient)}`">
+                  {{ effectiveStatus(patient) }}
+                </span>
               </div>
 
               <p class="case-dx">{{ patient.diagnosis }}</p>
@@ -471,9 +484,10 @@ const liveAgent = computed(() => {
   box-shadow: 0 2px 6px rgba(60,64,67,0.1), 0 4px 16px rgba(60,64,67,0.06);
 }
 
-.case-card.is-active   { border-left-color: #1A73E8; }
-.case-card.is-complete { border-left-color: #34A853; }
-.case-card.is-pending  { border-left-color: #FBBC04; }
+.case-card.is-active    { border-left-color: #1A73E8; }
+.case-card.is-complete  { border-left-color: #34A853; }
+.case-card.is-pending   { border-left-color: #FBBC04; }
+.case-card.is-discussed { border-left-color: #34A853; }
 
 .case-body { flex: 1; padding: 18px 20px; min-width: 0; }
 
@@ -504,9 +518,17 @@ const liveAgent = computed(() => {
   padding: 3px 10px; border-radius: 999px;
   font-size: 12px; font-weight: 500; text-transform: capitalize; flex-shrink: 0;
 }
-.status-pill.is-active   { background: #D2E3FC; color: #174EA6; }
-.status-pill.is-pending  { background: #FEF7E0; color: #B06000; }
-.status-pill.is-complete { background: #E6F4EA; color: #188038; }
+.status-pill.is-active    { background: #D2E3FC; color: #174EA6; }
+.status-pill.is-pending   { background: #FEF7E0; color: #B06000; }
+.status-pill.is-complete  { background: #E6F4EA; color: #188038; }
+.status-pill.is-discussed { background: #E6F4EA; color: #188038; }
+
+.discussed-pill {
+  display: inline-flex; align-items: center; gap: 3px;
+  padding: 3px 9px; border-radius: 999px; flex-shrink: 0;
+  font-size: 11px; font-weight: 600;
+  background: #E6F4EA; color: #137333;
+}
 
 .case-dx {
   font-size: 13px; color: #5F6368;

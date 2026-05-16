@@ -6,10 +6,12 @@ import CaseDisplay from '../components/CaseDisplay.vue'
 import LiveTranscriptPanel from '../components/LiveTranscriptPanel.vue'
 import { usePatientsStore } from '../src/stores/patients.js'
 import { useAgentsStore } from '../src/stores/agents.js'
+import { useMeetingStore } from '../src/stores/meeting.js'
 
 const router = useRouter()
 const store = usePatientsStore()
 const agentsStore = useAgentsStore()
+const meeting = useMeetingStore()
 
 const caseData = ref(null)
 
@@ -26,7 +28,7 @@ async function loadCase() {
   agentsStore.initCase(store.activeId)
 }
 
-// Merge pre-meeting agent outputs into caseData for the meeting room display
+// Merge pre-meeting agent outputs into caseData
 const enrichedCaseData = computed(() => {
   if (!caseData.value) return null
   const raw = agentsStore.getAgentRawData(store.activeId)
@@ -76,9 +78,13 @@ const enrichedCaseData = computed(() => {
 })
 
 const pipelineStatus = computed(() => agentsStore.getPipelineStatus(store.activeId ?? ''))
-const isRunning = computed(() => pipelineStatus.value === 'running')
-const hasAgentData = computed(() => Object.keys(agentsStore.getAgentRawData(store.activeId ?? '')).length > 0)
-const currentAgents = computed(() => agentsStore.getForPatient(store.activeId ?? ''))
+const isRunning      = computed(() => pipelineStatus.value === 'running')
+const hasAgentData   = computed(() => Object.keys(agentsStore.getAgentRawData(store.activeId ?? '')).length > 0)
+const currentAgents  = computed(() => agentsStore.getForPatient(store.activeId ?? ''))
+
+// Meeting state for active case
+const meetingState   = computed(() => meeting.getState(store.activeId ?? ''))
+const isDiscussed    = computed(() => meeting.isDiscussed(store.activeId ?? ''))
 
 const AGENT_SHORT = {
   CaseCompiler:     'Compiler',
@@ -94,39 +100,64 @@ function rerunPipeline() {
   if (!store.activeId || isRunning.value) return
   agentsStore.runPipeline(store.activeId)
 }
+
+function endMeeting() {
+  // Confirm consensus if not already done, then go to post-meeting
+  if (store.activeId && !isDiscussed.value && meetingState.value === 'ready') {
+    meeting.confirmConsensus(store.activeId)
+  }
+  router.push('/post-meeting')
+}
 </script>
 
 <template>
   <div class="meeting-shell">
 
+    <!-- ── Topbar ── -->
     <div class="meeting-topbar">
       <div class="topbar-left">
         <button class="icon-btn" title="Back to dashboard" @click="router.push('/')">
-          <span class="material-symbols-outlined" style="font-size: 20px; color: #5F6368">arrow_back</span>
+          <span class="material-symbols-outlined" style="font-size:20px;color:#5F6368">arrow_back</span>
         </button>
         <span class="material-symbols-outlined brand-icon">ecg_heart</span>
         <span class="topbar-title">Meeting Room</span>
+
         <div class="live-chip">
           <span class="live-dot"></span>
           Live
         </div>
+
+        <!-- Discussed badge for active case -->
+        <Transition name="fade-in">
+          <div v-if="isDiscussed" class="discussed-chip">
+            <span class="material-symbols-outlined" style="font-size:13px">verified</span>
+            Discussed
+          </div>
+        </Transition>
       </div>
+
       <div class="topbar-right">
-        <button class="end-btn" @click="router.push('/post-meeting')">
-          <span class="material-symbols-outlined" style="font-size: 16px">meeting_room</span>
+        <button class="end-btn" @click="endMeeting">
+          <span class="material-symbols-outlined" style="font-size:16px">meeting_room</span>
           End Meeting
         </button>
       </div>
     </div>
 
     <div class="columns">
+
+      <!-- ── Patient sidebar ── -->
       <PatientSelector
         :patients="store.patients"
         :active-id="store.activeId"
+        :discussed-ids="meeting.discussedCaseIds"
         @select="store.setActive($event)"
       />
+
+      <!-- ── Main case area ── -->
       <div class="main-content">
-        <!-- Agent status strip — scoped to the currently open patient -->
+
+        <!-- Pre-meeting agent strip -->
         <div v-if="enrichedCaseData" class="agent-strip">
           <div class="agent-strip-dots">
             <div
@@ -155,11 +186,15 @@ function rerunPipeline() {
 
         <CaseDisplay v-if="enrichedCaseData" :case-data="enrichedCaseData" />
         <div v-else class="loading-state">
-          <span class="material-symbols-outlined" style="font-size: 40px; color: #DADCE0">hourglass_empty</span>
+          <span class="material-symbols-outlined" style="font-size:40px;color:#DADCE0">hourglass_empty</span>
           <div>Loading case data…</div>
         </div>
+
       </div>
-      <LiveTranscriptPanel />
+
+      <!-- ── Transcript + Decisions panel ── -->
+      <LiveTranscriptPanel v-if="store.activeId" :case-id="store.activeId" />
+
     </div>
 
   </div>
@@ -199,44 +234,40 @@ function rerunPipeline() {
   width: 6px; height: 6px; border-radius: 50%; background: #EA4335;
   animation: pulse 1.4s ease-in-out infinite;
 }
-@keyframes pulse { 0%,100% { opacity:1; } 50% { opacity:0.3; } }
+@keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.3} }
+
+.discussed-chip {
+  display: inline-flex; align-items: center; gap: 5px;
+  padding: 3px 10px; border-radius: 999px;
+  background: #E6F4EA; color: #137333; font-size: 12px; font-weight: 500;
+}
+
+.fade-in-enter-active { transition: opacity 300ms, transform 300ms; }
+.fade-in-enter-from   { opacity: 0; transform: scale(.92); }
 
 /* ── Agent status strip ── */
 .agent-strip {
   display: flex; align-items: center; justify-content: space-between;
-  padding: 0 20px;
-  height: 44px; flex-shrink: 0;
-  background: #fff; border-bottom: 1px solid #DADCE0;
-  gap: 12px;
+  padding: 0 20px; height: 44px; flex-shrink: 0;
+  background: #fff; border-bottom: 1px solid #DADCE0; gap: 12px;
 }
-
-.agent-strip-dots {
-  display: flex; align-items: center; gap: 14px; overflow: hidden;
-}
-
-.agent-dot-item {
-  display: flex; align-items: center; gap: 5px;
-  flex-shrink: 0; cursor: default;
-}
+.agent-strip-dots { display: flex; align-items: center; gap: 14px; overflow: hidden; }
+.agent-dot-item   { display: flex; align-items: center; gap: 5px; flex-shrink: 0; cursor: default; }
 
 .agent-dot {
-  width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0;
-  transition: background 300ms;
+  width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; transition: background 300ms;
 }
 .agent-dot.idle     { background: #DADCE0; }
 .agent-dot.running  { background: #1A73E8; animation: dot-pulse 1.4s ease-in-out infinite; }
 .agent-dot.complete { background: #34A853; }
 .agent-dot.error    { background: #EA4335; }
-
-.agent-dot-label {
-  font-size: 11px; color: #5F6368; font-weight: 500; white-space: nowrap;
-}
+.agent-dot-label    { font-size: 11px; color: #5F6368; font-weight: 500; white-space: nowrap; }
 
 .rerun-btn {
   display: inline-flex; align-items: center; gap: 6px;
   padding: 6px 14px; border-radius: 999px; border: 1px solid #DADCE0;
   font-size: 12px; font-weight: 500; cursor: pointer; flex-shrink: 0;
-  font-family: 'Roboto', sans-serif; transition: background 150ms;
+  font-family: 'Roboto',sans-serif; transition: background 150ms;
   background: #fff; color: #202124;
 }
 .rerun-btn:hover:not(:disabled) { background: #F8F9FA; }
@@ -248,23 +279,17 @@ function rerunPipeline() {
 
 .rerun-spinner {
   width: 13px; height: 13px;
-  border: 2px solid rgba(23, 78, 166, 0.25);
-  border-top-color: #174EA6;
-  border-radius: 50%;
-  animation: spin 0.8s linear infinite;
-  flex-shrink: 0;
+  border: 2px solid rgba(23,78,166,.25); border-top-color: #174EA6;
+  border-radius: 50%; animation: spin .8s linear infinite; flex-shrink: 0;
 }
-@keyframes spin { to { transform: rotate(360deg); } }
-@keyframes dot-pulse {
-  0%, 100% { opacity: 1; transform: scale(1); }
-  50%       { opacity: 0.5; transform: scale(1.4); }
-}
+@keyframes spin     { to { transform: rotate(360deg); } }
+@keyframes dot-pulse{ 0%,100%{opacity:1;transform:scale(1)} 50%{opacity:.5;transform:scale(1.4)} }
 
 .end-btn {
   display: inline-flex; align-items: center; gap: 6px;
   padding: 7px 16px; border-radius: 999px; border: none;
   background: #EA4335; color: #fff; font-size: 13px; font-weight: 500;
-  cursor: pointer; font-family: 'Roboto', sans-serif; transition: background 150ms;
+  cursor: pointer; font-family: 'Roboto',sans-serif; transition: background 150ms;
 }
 .end-btn:hover { background: #c5221f; }
 

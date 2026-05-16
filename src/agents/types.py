@@ -18,5 +18,9 @@ class CaseNotFoundError(AgentError):
     pass
 
 
+class SessionNotFoundError(AgentError):
+    pass
+
+
 class AgentOutputValidationError(AgentError):
     """Raised when an agent's raw output cannot be coerced into its declared schema."""

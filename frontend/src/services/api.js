@@ -345,6 +345,36 @@ export async function getCaseGenomics(id, genes) {
   return data
 }
 
+// ─── SSE parser (shared) ─────────────────────────────────────────────────────
+
+async function* _parseSSE(response) {
+  const reader = response.body.getReader()
+  const decoder = new TextDecoder()
+  let buffer = ''
+  let eventType = ''
+  let eventData = ''
+  try {
+    while (true) {
+      const { done, value } = await reader.read()
+      if (done) break
+      buffer += decoder.decode(value, { stream: true })
+      const lines = buffer.split('\n')
+      buffer = lines.pop() ?? ''
+      for (const line of lines) {
+        if (line.startsWith('event: '))      eventType = line.slice(7).trim()
+        else if (line.startsWith('data: '))  eventData = line.slice(6).trim()
+        else if (line === '' && eventType && eventData) {
+          try { yield { type: eventType, payload: JSON.parse(eventData) } } catch {}
+          eventType = ''
+          eventData = ''
+        }
+      }
+    }
+  } finally {
+    reader.releaseLock()
+  }
+}
+
 /**
  * Stream the pre-meeting pipeline for a case via SSE.
  * Yields { type: 'agent'|'pipeline', payload: {...} } objects.
@@ -359,37 +389,70 @@ export async function* streamPipeline(caseId) {
     const body = await response.text().catch(() => '')
     throw new Error(`Pipeline request failed (${response.status})${body ? ': ' + body : ''}`)
   }
+  yield* _parseSSE(response)
+}
 
-  const reader = response.body.getReader()
-  const decoder = new TextDecoder()
-  let buffer = ''
-  let eventType = ''
-  let eventData = ''
+// ─── Meeting room API ─────────────────────────────────────────────────────────
 
-  try {
-    while (true) {
-      const { done, value } = await reader.read()
-      if (done) break
+/** Create a new meeting session for a case. Returns { session_id, case_id, status, started_at }. */
+export async function createSession(caseId) {
+  const res = await fetch(`${BASE_URL}/cases/${encodeURIComponent(caseId)}/sessions`, {
+    method: 'POST',
+  })
+  if (!res.ok) throw new Error(`Failed to create session (${res.status})`)
+  return res.json()
+}
 
-      buffer += decoder.decode(value, { stream: true })
-      const lines = buffer.split('\n')
-      buffer = lines.pop() ?? ''
+/**
+ * Stream TranscriptionAgent output for a session via SSE.
+ * Yields { type: 'start'|'transcript_line'|'complete'|'error', payload }.
+ */
+export async function* streamTranscription(sessionId) {
+  const response = await fetch(
+    `${BASE_URL}/sessions/${encodeURIComponent(sessionId)}/transcribe/stream`,
+    { method: 'POST', headers: { Accept: 'text/event-stream' } },
+  )
+  if (!response.ok) throw new Error(`Transcription request failed (${response.status})`)
+  yield* _parseSSE(response)
+}
 
-      for (const line of lines) {
-        if (line.startsWith('event: ')) {
-          eventType = line.slice(7).trim()
-        } else if (line.startsWith('data: ')) {
-          eventData = line.slice(6).trim()
-        } else if (line === '' && eventType && eventData) {
-          try { yield { type: eventType, payload: JSON.parse(eventData) } } catch {}
-          eventType = ''
-          eventData = ''
-        }
-      }
-    }
-  } finally {
-    reader.releaseLock()
-  }
+/** Run RecommendationAgent on a session. Returns the full recommendation output. */
+export async function runRecommendation(sessionId) {
+  const res = await fetch(
+    `${BASE_URL}/sessions/${encodeURIComponent(sessionId)}/recommend`,
+    { method: 'POST' },
+  )
+  if (!res.ok) throw new Error(`Recommendation failed (${res.status})`)
+  return res.json()
+}
+
+/**
+ * Send a recorded audio Blob to the backend for Gemini transcription.
+ * Returns { session_id, segment_count, speakers_detected, segments: [...] }.
+ */
+export async function transcribeAudio(sessionId, audioBlob) {
+  const form = new FormData()
+  form.append('file', audioBlob, 'recording.webm')
+  const res = await fetch(
+    `${BASE_URL}/sessions/${encodeURIComponent(sessionId)}/transcribe/audio`,
+    { method: 'POST', body: form },
+  )
+  if (!res.ok) throw new Error(`Audio transcription failed (${res.status})`)
+  return res.json()
+}
+
+/** Update session lifecycle status (e.g., 'post_meeting'). */
+export async function updateSessionStatus(sessionId, status) {
+  const res = await fetch(
+    `${BASE_URL}/sessions/${encodeURIComponent(sessionId)}/status`,
+    {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ status }),
+    },
+  )
+  if (!res.ok) throw new Error(`Status update failed (${res.status})`)
+  return res.json()
 }
 
 export async function saveNote(patientId, noteContent) {

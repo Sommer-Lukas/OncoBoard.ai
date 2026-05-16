@@ -5,10 +5,12 @@ import CaseOutcome from '../components/CaseOutcome.vue'
 import ActionTrackerTable from '../components/ActionTrackerTable.vue'
 import NoteDraft from '../components/NoteDraft.vue'
 import { usePatientsStore } from '../src/stores/patients.js'
+import { useMeetingStore } from '../src/stores/meeting.js'
 import { saveNote } from '../src/services/api.js'
 
 const router = useRouter()
 const store = usePatientsStore()
+const meeting = useMeetingStore()
 
 const postData = ref(null)
 
@@ -31,7 +33,7 @@ async function handleSaveNote(content) {
 const statusColor = { complete: '#34A853', pending: '#FBBC04' }
 
 function patientPostStatus(id) {
-  // A patient has a completed post-meeting if there's a non-null record
+  if (meeting.isDiscussed(id)) return 'complete'
   return store.patients.find(p => p.id === id)?.boardStatus === 'complete' ? 'complete' : 'pending'
 }
 </script>
@@ -46,7 +48,7 @@ function patientPostStatus(id) {
         </button>
         <div class="topbar-title">Post-Meeting Summary</div>
         <div class="count-badge">
-          {{ store.patients.filter(p => p.boardStatus === 'complete').length }}/{{ store.patients.length }} completed
+          {{ store.patients.filter(p => patientPostStatus(p.id) === 'complete').length }}/{{ store.patients.length }} completed
         </div>
       </div>
       <button class="export-btn">
@@ -91,9 +93,12 @@ function patientPostStatus(id) {
         </div>
 
         <div v-else-if="!postData" class="empty-state">
-          <span class="material-symbols-outlined" style="font-size: 48px; color: #DADCE0">pending</span>
-          <div class="empty-title">Not yet discussed</div>
-          <div class="empty-sub">{{ store.activePatient?.name }} has not been reviewed by the board yet.</div>
+          <span class="material-symbols-outlined" style="font-size: 48px; color: #DADCE0">pending_actions</span>
+          <div class="empty-title">Awaiting board review</div>
+          <div class="empty-sub">
+            {{ store.activePatient?.name || 'This case' }} has not been through the meeting room yet.<br>
+            Discuss the case and confirm consensus to generate the post-meeting summary.
+          </div>
         </div>
 
         <template v-else>
