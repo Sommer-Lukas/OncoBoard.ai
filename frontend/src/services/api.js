@@ -356,6 +356,53 @@ export async function getCaseGenomics(id, genes) {
   return data
 }
 
+/**
+ * Stream the pre-meeting pipeline for a case via SSE.
+ * Yields { type: 'agent'|'pipeline', payload: {...} } objects.
+ * The caller can `for await` over this async generator.
+ */
+export async function* streamPipeline(caseId) {
+  const response = await fetch(
+    `${BASE_URL}/cases/${encodeURIComponent(caseId)}/pre-meeting/run`,
+    { method: 'POST', headers: { Accept: 'text/event-stream' } },
+  )
+  if (!response.ok) {
+    const body = await response.text().catch(() => '')
+    throw new Error(`Pipeline request failed (${response.status})${body ? ': ' + body : ''}`)
+  }
+
+  const reader = response.body.getReader()
+  const decoder = new TextDecoder()
+  let buffer = ''
+  let eventType = ''
+  let eventData = ''
+
+  try {
+    while (true) {
+      const { done, value } = await reader.read()
+      if (done) break
+
+      buffer += decoder.decode(value, { stream: true })
+      const lines = buffer.split('\n')
+      buffer = lines.pop() ?? ''
+
+      for (const line of lines) {
+        if (line.startsWith('event: ')) {
+          eventType = line.slice(7).trim()
+        } else if (line.startsWith('data: ')) {
+          eventData = line.slice(6).trim()
+        } else if (line === '' && eventType && eventData) {
+          try { yield { type: eventType, payload: JSON.parse(eventData) } } catch {}
+          eventType = ''
+          eventData = ''
+        }
+      }
+    }
+  } finally {
+    reader.releaseLock()
+  }
+}
+
 export async function saveNote(patientId, noteContent) {
   // TODO: PUT ${BASE_URL}/patients/${patientId}/note
   console.log(`[api] saveNote(${patientId})`, noteContent)

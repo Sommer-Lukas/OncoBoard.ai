@@ -95,8 +95,8 @@ function handleDatabaseClick(e) {
 /* ── Base card ── */
 .agent-card {
   background: #fff;
-  border-radius: 12px;
-  padding: 20px;
+  border-radius: 10px;
+  padding: 12px 14px;
   position: relative;
   border: 1.5px solid transparent;
   transition: box-shadow 200ms, border-color 200ms, background 200ms, opacity 200ms;
@@ -136,7 +136,7 @@ function handleDatabaseClick(e) {
 .scan-bar {
   position: absolute;
   inset: 0;
-  border-radius: 11px;
+  border-radius: 9px;
   pointer-events: none;
   overflow: hidden;
   z-index: 0;
@@ -154,16 +154,16 @@ function handleDatabaseClick(e) {
 /* ── Sonar pulse rings ── */
 .icon-wrapper {
   position: relative;
-  width: 40px;
-  height: 40px;
+  width: 32px;
+  height: 32px;
   flex-shrink: 0;
 }
 
 .pulse-ring {
   position: absolute;
-  inset: -5px;
+  inset: -4px;
   border: 1.5px solid rgba(26,115,232,0.45);
-  border-radius: 13px;
+  border-radius: 10px;
   animation: ring-expand 2.2s ease-out infinite;
   pointer-events: none;
 }
@@ -173,7 +173,7 @@ function handleDatabaseClick(e) {
 .icon-box {
   position: absolute;
   inset: 0;
-  border-radius: 8px;
+  border-radius: 7px;
   background: #F8F9FA;
   display: flex;
   align-items: center;
@@ -186,7 +186,7 @@ function handleDatabaseClick(e) {
 .icon-box.error    { background: #FCE8E6; }
 
 .icon-symbol {
-  font-size: 20px;
+  font-size: 17px;
   color: #5F6368;
   transition: color 200ms;
 }
@@ -197,8 +197,8 @@ function handleDatabaseClick(e) {
 /* ── Card header ── */
 .card-header {
   display: flex;
-  align-items: flex-start;
-  gap: 12px;
+  align-items: center;
+  gap: 10px;
   position: relative;
   z-index: 1;
 }
@@ -208,11 +208,14 @@ function handleDatabaseClick(e) {
 .card-content { flex: 1; min-width: 0; }
 
 .card-title {
-  font-size: 15px;
+  font-size: 13px;
   font-weight: 500;
   color: #202124;
-  margin-bottom: 6px;
+  margin-bottom: 4px;
   transition: color 200ms;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 .agent-card.running .card-title { color: #174EA6; }
 
@@ -220,10 +223,10 @@ function handleDatabaseClick(e) {
 .status-chip {
   display: inline-flex;
   align-items: center;
-  gap: 5px;
-  padding: 3px 10px;
+  gap: 4px;
+  padding: 2px 8px;
   border-radius: 999px;
-  font-size: 12px;
+  font-size: 11px;
   font-weight: 500;
   line-height: 1.4;
 }
@@ -241,9 +244,9 @@ function handleDatabaseClick(e) {
 
 /* ── Timestamp ── */
 .timestamp {
-  font-size: 11px;
+  font-size: 10px;
   color: #9AA0A6;
-  margin-top: 6px;
+  margin-top: 3px;
   font-family: 'Roboto Mono', monospace;
 }
 
@@ -260,8 +263,8 @@ function handleDatabaseClick(e) {
 /* ── DB button ── */
 .db-btn {
   position: absolute;
-  top: 14px; right: 14px;
-  width: 30px; height: 30px;
+  top: 8px; right: 8px;
+  width: 26px; height: 26px;
   border-radius: 50%; border: none;
   background: #F8F9FA; cursor: pointer;
   display: flex; align-items: center; justify-content: center;
@@ -272,13 +275,13 @@ function handleDatabaseClick(e) {
 
 /* ── Output box ── */
 .output-box {
-  margin-top: 16px;
-  padding: 14px 16px;
+  margin-top: 10px;
+  padding: 10px 12px;
   background: #F8F9FA;
-  border-radius: 8px;
-  font-size: 13px;
+  border-radius: 7px;
+  font-size: 12px;
   color: #202124;
-  line-height: 1.6;
+  line-height: 1.5;
   border-left: 3px solid #34A853;
   position: relative;
   z-index: 1;

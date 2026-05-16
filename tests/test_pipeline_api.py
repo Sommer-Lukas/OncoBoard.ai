@@ -1,8 +1,8 @@
 """Pipeline runner + SSE route + read-only case endpoints."""
 import json
+import re
 
-from src.agents.case_compiler import CaseCompiler
-from src.agents.gemini_client import MockGeminiClient, get_gemini_client
+from src.agents.gemini_client import GeminiResponse, MockGeminiClient, get_gemini_client
 from src.agents.pipeline import run_pre_meeting
 from src.db import repository as repo
 from src.db.connection import connect
@@ -14,10 +14,21 @@ _VALID_SUMMARY = json.dumps({
     "data_gaps_flagged": [],
 })
 
+_CT_URL = re.compile(r".*clinicaltrials.*")
+_PUBMED_URL = re.compile(r".*eutils.*")
 
-async def test_pipeline_event_order_and_shared_run_id(seeded_db):
-    mock = MockGeminiClient()
-    mock.queue(_VALID_SUMMARY, tokens_used=210)
+
+async def test_pipeline_event_order_and_shared_run_id(seeded_db, httpx_mock):
+    # Mock TrialAgent's external HTTP calls so CI never hits real APIs.
+    httpx_mock.add_response(url=_CT_URL, json={"studies": []})
+    httpx_mock.add_response(url=_PUBMED_URL, json={"esearchresult": {"idlist": []}})
+
+    # Use default_response so ordering of parallel Gemini calls doesn't matter.
+    # _VALID_SUMMARY satisfies SummaryOutput but fails all other agent schemas, so
+    # only SummaryAgent succeeds regardless of asyncio scheduling order.
+    mock = MockGeminiClient(
+        default_response=GeminiResponse(text=_VALID_SUMMARY, tokens_used=210)
+    )
     events = []
     async with connect() as db:
         async for ev in run_pre_meeting(db, "SYN-001", gemini=mock):
@@ -70,11 +81,16 @@ async def test_health_endpoint(client):
     assert r.status_code == 200 and r.json() == {"status": "ok"}
 
 
-async def test_sse_route_streams_events(client):
+async def test_sse_route_streams_events(client, httpx_mock):
+    # Mock TrialAgent's external HTTP calls (ASGITransport is unaffected — only
+    # AsyncHTTPTransport calls are intercepted by httpx_mock).
+    httpx_mock.add_response(url=_CT_URL, json={"studies": []})
+    httpx_mock.add_response(url=_PUBMED_URL, json={"esearchresult": {"idlist": []}})
+
     # Route doesn't pass an explicit client -> uses the singleton mock.
     singleton = get_gemini_client()
     assert isinstance(singleton, MockGeminiClient)
-    singleton.queue(_VALID_SUMMARY, tokens_used=99)
+    singleton.default_response = GeminiResponse(text=_VALID_SUMMARY, tokens_used=99)
 
     seen: list[str] = []
     async with client.stream("POST", "/cases/SYN-002/pre-meeting/run") as resp:
