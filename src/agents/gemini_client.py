@@ -29,6 +29,7 @@ class GeminiClient(Protocol):
         prompt: str,
         system_instruction: str | None = None,
         response_schema: type[Any] | None = None,
+        image_paths: list[str] | None = None,
     ) -> GeminiResponse: ...
 
 
@@ -69,6 +70,7 @@ class RealGeminiClient:
         prompt: str,
         system_instruction: str | None = None,
         response_schema: type[Any] | None = None,
+        image_paths: list[str] | None = None,
     ) -> GeminiResponse:
         from google.genai import types as genai_types
 
@@ -81,12 +83,27 @@ class RealGeminiClient:
             config_kwargs["response_schema"] = response_schema
         config = genai_types.GenerateContentConfig(**config_kwargs) if config_kwargs else None
 
+        if image_paths:
+            parts: list[Any] = []
+            for path in image_paths:
+                try:
+                    with open(path, "rb") as fh:
+                        data = fh.read()
+                    mime = "image/jpeg" if str(path).lower().endswith((".jpg", ".jpeg")) else "image/png"
+                    parts.append(genai_types.Part.from_bytes(data=data, mime_type=mime))
+                except OSError:
+                    pass
+            parts.append(genai_types.Part.from_text(text=prompt))
+            contents: Any = genai_types.Content(parts=parts)
+        else:
+            contents = prompt
+
         attempt = 0
         while True:
             try:
                 resp = await self._client.aio.models.generate_content(
                     model=model,
-                    contents=prompt,
+                    contents=contents,
                     config=config,
                 )
                 return GeminiResponse(
@@ -143,6 +160,7 @@ class MockGeminiClient:
         prompt: str,
         system_instruction: str | None = None,
         response_schema: type[Any] | None = None,
+        image_paths: list[str] | None = None,
     ) -> GeminiResponse:
         self.calls.append(
             {
@@ -150,6 +168,7 @@ class MockGeminiClient:
                 "prompt": prompt,
                 "system_instruction": system_instruction,
                 "response_schema": response_schema.__name__ if response_schema else None,
+                "image_paths": image_paths,
             }
         )
         if self._queue:

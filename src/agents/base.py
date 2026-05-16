@@ -155,6 +155,7 @@ class BaseAgent(ABC, Generic[TOutput]):
         prompt: str,
         system_instruction: str | None = None,
         response_schema: type[BaseModel] | None = None,
+        image_paths: list[str] | None = None,
     ):
         """Convenience wrapper. Tracks tokens consumed during this `execute()` run."""
         resp = await self.gemini.generate(
@@ -162,6 +163,7 @@ class BaseAgent(ABC, Generic[TOutput]):
             prompt=prompt,
             system_instruction=system_instruction,
             response_schema=response_schema,
+            image_paths=image_paths,
         )
         self._pending_tokens += resp.tokens_used
         return resp
