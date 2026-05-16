@@ -1,7 +1,9 @@
 <script setup>
 import { useRoute } from 'vue-router'
+import { useAgentsStore } from './stores/agents.js'
 
 const route = useRoute()
+const agentsStore = useAgentsStore()
 
 const noNav = ['/meeting']
 </script>
@@ -28,6 +30,15 @@ const noNav = ['/meeting']
           Post-Meeting
         </RouterLink>
       </nav>
+
+      <div class="nav-right">
+        <Transition name="ai-chip">
+          <div v-if="agentsStore.runningCount > 0" class="ai-live-chip">
+            <span class="ai-live-dot"></span>
+            {{ agentsStore.runningCount }} agent{{ agentsStore.runningCount !== 1 ? 's' : '' }} running
+          </div>
+        </Transition>
+      </div>
     </header>
 
     <RouterView />
@@ -44,7 +55,6 @@ body {
   font-family: 'Roboto', sans-serif;
   color: #202124;
   -webkit-font-smoothing: antialiased;
-  /* Override any dark-mode body background from colors_and_type.css */
   background: #F8F9FA !important;
 }
 </style>
@@ -54,7 +64,6 @@ body {
   display: flex;
   flex-direction: column;
   min-height: 100vh;
-  /* Anchor the background here so it's never transparent to body */
   background: #F8F9FA;
 }
 
@@ -81,25 +90,17 @@ body {
   flex-shrink: 0;
 }
 
-.brand-icon {
-  font-size: 22px;
-  color: #1A73E8;
-}
+.brand-icon { font-size: 22px; color: #1A73E8; }
 
-.brand-name {
-  font-size: 16px;
-  font-weight: 500;
-  color: #202124;
-}
+.brand-name { font-size: 16px; font-weight: 500; color: #202124; }
 
-.brand-accent {
-  color: #1A73E8;
-}
+.brand-accent { color: #1A73E8; }
 
 .nav-links {
   display: flex;
   align-items: center;
   gap: 4px;
+  flex: 1;
 }
 
 .nav-link {
@@ -112,13 +113,46 @@ body {
   transition: background 150ms, color 150ms;
 }
 
-.nav-link:hover {
-  background: #F8F9FA;
-  color: #202124;
+.nav-link:hover { background: #F8F9FA; color: #202124; }
+.nav-link.active { background: #D2E3FC; color: #174EA6; }
+
+/* AI live chip */
+.nav-right { display: flex; align-items: center; flex-shrink: 0; }
+
+.ai-live-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 5px 13px;
+  border-radius: 999px;
+  background: rgba(26, 115, 232, 0.08);
+  color: #174EA6;
+  font-size: 12px;
+  font-weight: 500;
+  border: 1px solid rgba(26, 115, 232, 0.2);
 }
 
-.nav-link.active {
-  background: #D2E3FC;
-  color: #174EA6;
+.ai-live-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #1A73E8;
+  animation: ai-dot-pulse 1.6s ease-in-out infinite;
+}
+
+/* Transition for chip appearing/disappearing */
+.ai-chip-enter-active,
+.ai-chip-leave-active {
+  transition: opacity 300ms, transform 300ms;
+}
+.ai-chip-enter-from,
+.ai-chip-leave-to {
+  opacity: 0;
+  transform: scale(0.9);
+}
+
+@keyframes ai-dot-pulse {
+  0%, 100% { transform: scale(1); opacity: 1; }
+  50% { transform: scale(1.5); opacity: 0.5; }
 }
 </style>
