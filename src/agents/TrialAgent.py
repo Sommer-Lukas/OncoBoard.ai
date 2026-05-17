@@ -33,6 +33,13 @@ _SYSTEM = (
 _CT_PAGE_SIZE = 10
 _PUBMED_MAX = 5
 
+# ClinicalTrials.gov / NCBI edge layers 403 clients with the default
+# python-httpx UA. Send a descriptive identifier so requests aren't blocked.
+_HTTP_HEADERS = {
+    "User-Agent": "OncoBoard.ai/0.1 (breast cancer tumor board research prototype)",
+    "Accept": "application/json",
+}
+
 
 class TrialMatch(BaseModel):
     nct_id: str
@@ -76,7 +83,7 @@ class TrialAgent(BaseAgent[TrialOutput]):
             "age": case.age_at_diagnosis,
         }
 
-        async with httpx.AsyncClient(timeout=15.0) as client:
+        async with httpx.AsyncClient(timeout=15.0, headers=_HTTP_HEADERS) as client:
             trials_data = await self._fetch_trials(client, settings.clinicaltrials_base_url, case)
             pubmed_ids = await self._search_pubmed(client, settings.pubmed_base_url, case)
             pubmed_refs = await self._fetch_pubmed_summaries(client, settings.pubmed_base_url, pubmed_ids)
@@ -137,7 +144,9 @@ class TrialAgent(BaseAgent[TrialOutput]):
                     "query.cond": " ".join(query_terms),
                     "filter.overallStatus": "RECRUITING",
                     "pageSize": str(_CT_PAGE_SIZE),
-                    "fields": "NCTId,BriefTitle,Phase,OverallStatus,EligibilityCriteria,BriefSummary",
+                    # No `fields` filter: v2 rejects/empties legacy v1 field
+                    # names. The full study record is returned by default and
+                    # _extract_trial_summaries only reads the modules it needs.
                     "format": "json",
                 },
             )
