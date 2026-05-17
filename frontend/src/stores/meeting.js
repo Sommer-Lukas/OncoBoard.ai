@@ -22,6 +22,7 @@ import {
   runRecommendation,
   updateSessionStatus,
   transcribeAudio as apiTranscribeAudio,
+  confirmGate2,
 } from '../services/api.js'
 
 // ── Local fixture data (used when backend is unavailable) ─────────────────────
@@ -101,6 +102,13 @@ export const useMeetingStore = defineStore('meeting', () => {
 
   const _stored = JSON.parse(localStorage.getItem('ob_discussed') || '[]')
   const discussedCaseIds = ref(new Set(_stored))
+
+  // Rehydrate sessions for discussed cases so post-meeting survives page reload
+  const _storedSessions = JSON.parse(localStorage.getItem('ob_sessions') || '{}')
+  Object.entries(_storedSessions).forEach(([caseId, s]) => {
+    sessions.value[caseId] = s
+    if (s.is_demo) isDemoMode.value[caseId] = true
+  })
 
   const _timers = {}
   const _mediaRecorders = {}   // { [caseId]: MediaRecorder }
@@ -300,8 +308,18 @@ export const useMeetingStore = defineStore('meeting', () => {
     _persist()
 
     const session = sessions.value[caseId]
-    if (session && !isDemoMode.value[caseId]) {
+    const isDemo  = isDemoMode.value[caseId] ?? false
+
+    // Persist session so it survives page reload on the post-meeting view
+    if (session) {
+      const stored = JSON.parse(localStorage.getItem('ob_sessions') || '{}')
+      stored[caseId] = { ...session, is_demo: isDemo }
+      localStorage.setItem('ob_sessions', JSON.stringify(stored))
+    }
+
+    if (session && !isDemo) {
       updateSessionStatus(session.session_id, 'post_meeting').catch(console.error)
+      confirmGate2(session.session_id).catch(console.error)
     }
   }
 
@@ -315,6 +333,11 @@ export const useMeetingStore = defineStore('meeting', () => {
     delete _audioChunks[caseId]
     delete states.value[caseId]
     delete sessions.value[caseId]
+    discussedCaseIds.value.delete(caseId)
+    _persist()
+    const stored = JSON.parse(localStorage.getItem('ob_sessions') || '{}')
+    delete stored[caseId]
+    localStorage.setItem('ob_sessions', JSON.stringify(stored))
     delete transcripts.value[caseId]
     delete decisions.value[caseId]
     delete elapsed.value[caseId]

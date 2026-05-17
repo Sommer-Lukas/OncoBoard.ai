@@ -54,7 +54,7 @@ function handleDatabaseClick(e) {
         <div v-if="status === 'running'" class="pulse-ring ring-1" aria-hidden="true"></div>
         <div v-if="status === 'running'" class="pulse-ring ring-2" aria-hidden="true"></div>
         <div class="icon-box" :class="status">
-          <span class="material-symbols-outlined icon-symbol">{{ icon }}</span>
+          <img :src="icon" :alt="name" class="icon-img" />
         </div>
       </div>
 
@@ -95,8 +95,8 @@ function handleDatabaseClick(e) {
 /* ── Base card ── */
 .agent-card {
   background: #fff;
-  border-radius: 10px;
-  padding: 12px 14px;
+  border-radius: 12px;
+  padding: 16px 18px;
   position: relative;
   border: 1.5px solid transparent;
   transition: box-shadow 200ms, border-color 200ms, background 200ms, opacity 200ms;
@@ -154,16 +154,16 @@ function handleDatabaseClick(e) {
 /* ── Sonar pulse rings ── */
 .icon-wrapper {
   position: relative;
-  width: 32px;
-  height: 32px;
+  width: 52px;
+  height: 52px;
   flex-shrink: 0;
 }
 
 .pulse-ring {
   position: absolute;
-  inset: -4px;
+  inset: -5px;
   border: 1.5px solid rgba(26,115,232,0.45);
-  border-radius: 10px;
+  border-radius: 14px;
   animation: ring-expand 2.2s ease-out infinite;
   pointer-events: none;
 }
@@ -173,7 +173,7 @@ function handleDatabaseClick(e) {
 .icon-box {
   position: absolute;
   inset: 0;
-  border-radius: 7px;
+  border-radius: 12px;
   background: #F8F9FA;
   display: flex;
   align-items: center;
@@ -185,20 +185,20 @@ function handleDatabaseClick(e) {
 .icon-box.complete { background: #E6F4EA; }
 .icon-box.error    { background: #FCE8E6; }
 
-.icon-symbol {
-  font-size: 17px;
-  color: #5F6368;
-  transition: color 200ms;
+.icon-img {
+  width: 34px;
+  height: 34px;
+  object-fit: contain;
+  transition: opacity 200ms;
 }
-.icon-box.running  .icon-symbol { color: #1A73E8; animation: icon-breathe 2s ease-in-out infinite; }
-.icon-box.complete .icon-symbol { color: #34A853; }
-.icon-box.error    .icon-symbol { color: #EA4335; }
+.icon-box.idle    .icon-img { opacity: 0.4; }
+.icon-box.running .icon-img { animation: icon-breathe 2s ease-in-out infinite; }
 
 /* ── Card header ── */
 .card-header {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 14px;
   position: relative;
   z-index: 1;
 }
@@ -208,10 +208,10 @@ function handleDatabaseClick(e) {
 .card-content { flex: 1; min-width: 0; }
 
 .card-title {
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 500;
   color: #202124;
-  margin-bottom: 4px;
+  margin-bottom: 5px;
   transition: color 200ms;
   white-space: nowrap;
   overflow: hidden;

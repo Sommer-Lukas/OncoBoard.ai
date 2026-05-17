@@ -188,7 +188,7 @@ const liveAgent = computed(() => {
                     :title="`${agent.name} — ${agent.status}`"
                   >
                     <div v-if="agent.status === 'running'" class="a-ring" aria-hidden="true"></div>
-                    <span class="material-symbols-outlined" style="font-size:11px;position:relative;z-index:1">{{ agent.icon }}</span>
+                    <img :src="agent.icon" :alt="agent.name" style="width:14px;height:14px;object-fit:contain;position:relative;z-index:1;border-radius:2px;" />
                   </div>
                 </div>
                 <span class="agent-readout">

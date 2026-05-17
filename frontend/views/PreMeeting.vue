@@ -282,7 +282,7 @@ function closeDatabase() {
   flex-shrink: 0;
 }
 
-.container { max-width: 1280px; margin: 0 auto; padding: 24px; }
+.container { max-width: 1280px; margin: 0 auto; padding: 20px 24px; }
 
 .board-history {
   background: #F8F9FA; padding: 16px 20px; border-radius: 12px;
@@ -410,9 +410,13 @@ function closeDatabase() {
 /* ── Agent grid ── */
 .agent-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
-  gap: 10px;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 12px;
   margin-bottom: 32px;
+}
+
+.agent-grid > *:last-child {
+  grid-column: 1 / -1;
 }
 
 .agent-grid > * {

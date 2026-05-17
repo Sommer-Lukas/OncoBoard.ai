@@ -464,3 +464,30 @@ export async function updateActionStatus(patientId, actionIndex, status) {
   // TODO: PATCH ${BASE_URL}/patients/${patientId}/actions/${actionIndex}
   console.log(`[api] updateActionStatus(${patientId}, ${actionIndex}, ${status})`)
 }
+
+/** Record Human Gate 2 (consensus confirmed) for a session. */
+export async function confirmGate2(sessionId, approvedBy = 'Board Coordinator') {
+  const res = await fetch(`${BASE_URL}/sessions/${encodeURIComponent(sessionId)}/gate2/confirm`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ approved_by: approvedBy }),
+  })
+  if (!res.ok) throw new Error(`Gate 2 confirmation failed (${res.status})`)
+  return res.json()
+}
+
+/**
+ * Stream the post-meeting pipeline for a session via SSE.
+ * Yields { type: 'agent'|'pipeline', payload: {...} } objects.
+ */
+export async function* streamPostMeetingPipeline(sessionId) {
+  const response = await fetch(
+    `${BASE_URL}/sessions/${encodeURIComponent(sessionId)}/post-meeting/run`,
+    { method: 'POST', headers: { Accept: 'text/event-stream' } },
+  )
+  if (!response.ok) {
+    const body = await response.text().catch(() => '')
+    throw new Error(`Post-meeting pipeline failed (${response.status})${body ? ': ' + body : ''}`)
+  }
+  yield* _parseSSE(response)
+}
