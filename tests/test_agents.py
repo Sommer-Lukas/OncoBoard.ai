@@ -5,9 +5,9 @@ import pytest
 from pydantic import BaseModel
 
 from src.agents.base import BaseAgent
-from src.agents.case_compiler import CaseCompiler, CaseCompilerOutput
+from src.agents.CaseCompiler import CaseCompiler, CaseCompilerOutput
 from src.agents.gemini_client import MockGeminiClient
-from src.agents.summary_agent import SummaryAgent, SummaryOutput
+from src.agents.SummaryAgent import SummaryAgent, SummaryOutput
 from src.agents.types import AgentError, AgentOutputValidationError, CaseNotFoundError
 from src.db import repository as repo
 from src.db.models import Case
