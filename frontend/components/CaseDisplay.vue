@@ -385,7 +385,17 @@ function verificationStatus(agentName, hasData) {
               class="content-card trial-card"
             >
               <div class="trial-header">
-                <span class="trial-id">{{ trial.nct_id }}</span>
+                <a
+                  :href="`https://clinicaltrials.gov/study/${trial.nct_id}`"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  class="trial-id trial-link"
+                  :title="`Open ${trial.nct_id} on ClinicalTrials.gov`"
+                  @click.stop
+                >
+                  {{ trial.nct_id }}
+                  <span class="material-symbols-outlined" style="font-size:12px;vertical-align:middle">open_in_new</span>
+                </a>
                 <span v-if="trial.phase" class="chip">{{ trial.phase }}</span>
                 <span class="chip status">{{ trial.overall_status }}</span>
               </div>
@@ -403,7 +413,17 @@ function verificationStatus(agentName, hasData) {
               :key="ref.pmid"
               class="content-card pubmed-card"
             >
-              <span class="trial-id">PMID {{ ref.pmid }}</span>
+              <a
+                :href="`https://pubmed.ncbi.nlm.nih.gov/${ref.pmid}/`"
+                target="_blank"
+                rel="noopener noreferrer"
+                class="trial-id trial-link"
+                :title="`Open PMID ${ref.pmid} on PubMed`"
+                @click.stop
+              >
+                PMID {{ ref.pmid }}
+                <span class="material-symbols-outlined" style="font-size:12px;vertical-align:middle">open_in_new</span>
+              </a>
               <div v-if="ref.title" class="field-value" style="margin-top: 4px">{{ ref.title }}</div>
               <div v-if="ref.source" class="pubmed-source">{{ ref.source }}</div>
             </div>
@@ -644,6 +664,13 @@ function verificationStatus(agentName, hasData) {
   font-family: 'Roboto Mono', monospace;
   font-size: 12px; font-weight: 500; color: #1967D2;
 }
+.trial-link {
+  text-decoration: none;
+  display: inline-flex; align-items: center; gap: 3px;
+  border-radius: 4px; padding: 1px 4px; margin: -1px -4px;
+  transition: background 150ms;
+}
+.trial-link:hover { background: #E8F0FE; text-decoration: underline; }
 .trial-title {
   font-size: 14px; font-weight: 500; color: #202124; line-height: 1.4;
 }

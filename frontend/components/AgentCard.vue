@@ -36,6 +36,14 @@ const formattedOutput = computed(() => {
   }
 })
 
+const matchedTrials = computed(() =>
+  Array.isArray(props.rawData?.matched_trials) ? props.rawData.matched_trials : []
+)
+
+const pubmedRefs = computed(() =>
+  Array.isArray(props.rawData?.pubmed_references) ? props.rawData.pubmed_references : []
+)
+
 function handleCardClick() {
   if (props.status === 'complete') modalOpen.value = true
 }
@@ -158,6 +166,51 @@ function handleModalVerify() {
           </div>
 
           <div class="modal-body">
+            <!-- Trial quick-links (only for TrialAgent output) -->
+            <div v-if="matchedTrials.length" class="trial-links-section">
+              <div class="trial-links-label">
+                <span class="material-symbols-outlined" style="font-size:14px">science</span>
+                Matched Trials — open on ClinicalTrials.gov
+              </div>
+              <div class="trial-links-list">
+                <a
+                  v-for="trial in matchedTrials"
+                  :key="trial.nct_id"
+                  :href="`https://clinicaltrials.gov/study/${trial.nct_id}`"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  class="trial-link-pill"
+                >
+                  <span class="trial-link-id">{{ trial.nct_id }}</span>
+                  <span v-if="trial.phase" class="trial-link-phase">{{ trial.phase }}</span>
+                  <span class="material-symbols-outlined" style="font-size:13px;opacity:.7">open_in_new</span>
+                </a>
+              </div>
+            </div>
+
+            <!-- PubMed quick-links (only for TrialAgent output) -->
+            <div v-if="pubmedRefs.length" class="trial-links-section pubmed-links-section">
+              <div class="trial-links-label">
+                <span class="material-symbols-outlined" style="font-size:14px">bookmark</span>
+                PubMed References — open on PubMed
+              </div>
+              <div class="trial-links-list">
+                <a
+                  v-for="ref in pubmedRefs"
+                  :key="ref.pmid"
+                  :href="`https://pubmed.ncbi.nlm.nih.gov/${ref.pmid}/`"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  class="trial-link-pill pubmed-pill"
+                  :title="ref.title ?? `PMID ${ref.pmid}`"
+                >
+                  <span class="trial-link-id">PMID {{ ref.pmid }}</span>
+                  <span v-if="ref.source" class="trial-link-phase">{{ ref.source }}</span>
+                  <span class="material-symbols-outlined" style="font-size:13px;opacity:.7">open_in_new</span>
+                </a>
+              </div>
+            </div>
+
             <pre class="output-pre">{{ formattedOutput }}</pre>
           </div>
 
@@ -382,6 +435,68 @@ function handleModalVerify() {
 
 .modal-body {
   flex: 1; overflow-y: auto; padding: 20px;
+}
+
+.trial-links-section {
+  margin-bottom: 16px;
+  padding: 12px 14px;
+  background: #E8F0FE;
+  border-radius: 10px;
+  border: 1px solid #C5D9F7;
+}
+
+.trial-links-label {
+  display: flex; align-items: center; gap: 6px;
+  font-size: 11px; font-weight: 600; text-transform: uppercase;
+  letter-spacing: 0.05em; color: #174EA6; margin-bottom: 10px;
+}
+
+.trial-links-list {
+  display: flex; flex-wrap: wrap; gap: 8px;
+}
+
+.trial-link-pill {
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 5px 12px; border-radius: 999px;
+  background: #fff; border: 1.5px solid #C5D9F7;
+  color: #1967D2; text-decoration: none;
+  font-size: 12px; font-weight: 500;
+  transition: background 150ms, border-color 150ms, box-shadow 150ms;
+}
+.trial-link-pill:hover {
+  background: #D2E3FC; border-color: #1A73E8;
+  box-shadow: 0 1px 4px rgba(26,115,232,.2);
+}
+
+.trial-link-id {
+  font-family: 'Roboto Mono', monospace;
+}
+
+.trial-link-phase {
+  font-size: 10px; font-weight: 600;
+  background: #D2E3FC; color: #174EA6;
+  padding: 1px 6px; border-radius: 999px;
+}
+
+.pubmed-links-section {
+  background: #E6F4EA;
+  border-color: #CEEAD6;
+}
+
+.pubmed-links-section .trial-links-label { color: #137333; }
+
+.pubmed-pill {
+  color: #137333;
+  border-color: #CEEAD6;
+}
+.pubmed-pill:hover {
+  background: #CEEAD6;
+  border-color: #34A853;
+  box-shadow: 0 1px 4px rgba(52,168,83,.2);
+}
+.pubmed-pill .trial-link-phase {
+  background: #CEEAD6;
+  color: #0D652D;
 }
 
 .output-pre {
