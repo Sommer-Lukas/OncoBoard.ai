@@ -491,3 +491,25 @@ export async function* streamPostMeetingPipeline(sessionId) {
   }
   yield* _parseSSE(response)
 }
+
+/**
+ * Send a chat message to the ClinicalContextAgent for the active patient.
+ * @param {string} caseId
+ * @param {Array<{role: 'user'|'assistant', content: string}>} messages - full history including new user message
+ * @param {'pre'|'mid'|'post'} phase
+ * @returns {Promise<string>} assistant reply
+ */
+export async function chatWithCase(caseId, messages, phase = 'pre') {
+  const res = await fetch(`${BASE_URL}/cases/${encodeURIComponent(caseId)}/chat`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ messages, phase }),
+  })
+  if (!res.ok) {
+    const body = await res.text().catch(() => '')
+    throw new Error(`Chat failed (${res.status})${body ? ': ' + body : ''}`)
+  }
+  const data = await res.json()
+  return data.reply
+}
+

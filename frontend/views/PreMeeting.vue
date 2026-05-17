@@ -4,6 +4,7 @@ import PatientHeader from '../components/PatientHeader.vue'
 import AgentCard from '../components/AgentCard.vue'
 import DataGapAlert from '../components/DataGapAlert.vue'
 import PatientDatabase from '../components/PatientDatabase.vue'
+import ClinicalChatPanel from '../components/ClinicalChatPanel.vue'
 import { usePatientsStore } from '../src/stores/patients.js'
 import { useAgentsStore } from '../src/stores/agents.js'
 
@@ -220,6 +221,12 @@ function handleUnverify(agentName) {
     v-if="showDatabase && caseData"
     :patient="{ id: caseData.id, name: caseData.name }"
     @close="closeDatabase"
+  />
+
+  <ClinicalChatPanel
+    :case-id="patientsStore.activeId"
+    :case-name="caseData?.name"
+    phase="pre"
   />
 </template>
 

@@ -6,6 +6,7 @@ import AgentCard from '../components/AgentCard.vue'
 import CaseOutcome from '../components/CaseOutcome.vue'
 import ActionTrackerTable from '../components/ActionTrackerTable.vue'
 import NoteDraft from '../components/NoteDraft.vue'
+import ClinicalChatPanel from '../components/ClinicalChatPanel.vue'
 import { usePatientsStore } from '../src/stores/patients.js'
 import { useAgentsStore } from '../src/stores/agents.js'
 import { useMeetingStore } from '../src/stores/meeting.js'
@@ -413,6 +414,12 @@ function postStatus(patientId) {
 
     </div>
   </div>
+
+  <ClinicalChatPanel
+    :case-id="store.activeId"
+    :case-name="caseData?.name"
+    phase="post"
+  />
 </template>
 
 <style scoped>
