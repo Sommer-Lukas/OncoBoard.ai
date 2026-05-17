@@ -24,7 +24,7 @@ import aiosqlite
 from src.agents.CaseCompiler import CaseCompiler
 from src.agents.gemini_client import GeminiClient
 from src.agents.GuidelineAgent import GuidelineAgent
-from src.agents.HistoyCaseAgent import HistoryCaseAgent
+from src.agents.HistoryCaseAgent import HistoryCaseAgent
 from src.agents.PathologyAgent import PathologyAgent
 from src.agents.RadiologyAgent import RadiologyAgent
 from src.agents.SummaryAgent import SummaryAgent
