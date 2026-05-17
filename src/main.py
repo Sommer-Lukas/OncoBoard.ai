@@ -5,6 +5,7 @@ from fastapi.staticfiles import StaticFiles
 from src.api.cases import router as cases_router
 from src.api.meeting import router as meeting_router
 from src.api.pipeline import router as pipeline_router
+from src.api.post_meeting import router as post_meeting_router
 from src.config import get_settings
 from src.logging_setup import configure_logging, get_logger
 
@@ -26,6 +27,7 @@ def create_app() -> FastAPI:
     app.include_router(cases_router)
     app.include_router(pipeline_router)
     app.include_router(meeting_router)
+    app.include_router(post_meeting_router)
 
     images_dir = settings.images_dir
     if images_dir.is_dir():
