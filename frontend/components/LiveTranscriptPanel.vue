@@ -59,7 +59,8 @@ watch(() => lines.value.length, async () => {
 
 function handleStart() {
   if (!props.caseId || isRecording.value) return
-  meeting.startRecording(props.caseId)
+  if (isActive.value) meeting.resumeRecording(props.caseId)
+  else meeting.startRecording(props.caseId)
 }
 
 function handleStop() {
@@ -137,14 +138,12 @@ function formatTimestamp(ms) {
           <span class="material-symbols-outlined" style="font-size:14px">stop</span>
           Stop
         </button>
-        <button
-          v-else-if="!isRecording && !isDone && !isProcessing && !isReady && !isDiscussed"
-          class="start-btn"
-          @click="handleStart"
-        >
-          <span class="material-symbols-outlined" style="font-size:14px">fiber_manual_record</span>
-          {{ hasError ? 'Retry' : 'Start' }}
-        </button>
+        <template v-else-if="!isProcessing">
+          <button class="start-btn" @click="handleStart">
+            <span class="material-symbols-outlined" style="font-size:14px">fiber_manual_record</span>
+            {{ isActive ? 'Resume' : hasError ? 'Retry' : 'Start' }}
+          </button>
+        </template>
       </div>
     </div>
 

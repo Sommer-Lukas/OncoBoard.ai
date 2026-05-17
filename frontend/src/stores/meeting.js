@@ -100,11 +100,15 @@ export const useMeetingStore = defineStore('meeting', () => {
   const isDemoMode  = ref({})   // { [caseId]: boolean }
   const isAudioMode = ref({})   // { [caseId]: boolean } — real mic recording active
 
-  const _stored = JSON.parse(localStorage.getItem('ob_discussed') || '[]')
-  const discussedCaseIds = ref(new Set(_stored))
+  // Clear any stale localStorage keys from the old implementation
+  localStorage.removeItem('ob_discussed')
+  localStorage.removeItem('ob_sessions')
 
-  // Rehydrate sessions for discussed cases so post-meeting survives page reload
-  const _storedSessions = JSON.parse(localStorage.getItem('ob_sessions') || '{}')
+  // discussedCaseIds is intentionally NOT persisted — it must reset on every program start
+  const discussedCaseIds = ref(new Set())
+
+  // Sessions survive page refreshes within the same browser tab only (sessionStorage clears on restart)
+  const _storedSessions = JSON.parse(sessionStorage.getItem('ob_sessions') || '{}')
   Object.entries(_storedSessions).forEach(([caseId, s]) => {
     sessions.value[caseId] = s
     if (s.is_demo) isDemoMode.value[caseId] = true
@@ -136,10 +140,6 @@ export const useMeetingStore = defineStore('meeting', () => {
   function _stopTimer(caseId) {
     clearInterval(_timers[caseId])
     delete _timers[caseId]
-  }
-
-  function _persist() {
-    localStorage.setItem('ob_discussed', JSON.stringify([...discussedCaseIds.value]))
   }
 
   // ── Audio capture helpers ─────────────────────────────────────────────────────
@@ -271,6 +271,44 @@ export const useMeetingStore = defineStore('meeting', () => {
     }
   }
 
+  /**
+   * Resume recording — keeps the existing transcript and decisions intact,
+   * just starts the mic (or fixture stream) again and appends new lines.
+   */
+  async function resumeRecording(caseId) {
+    states.value[caseId]      = 'recording'
+    errors.value[caseId]      = null
+    isAudioMode.value[caseId] = false
+    _startTimer(caseId)
+
+    const audioStarted = await _startAudioCapture(caseId)
+    if (audioStarted) return
+
+    // No mic: append fixture lines to the existing transcript
+    const sessionId = sessions.value[caseId]?.session_id
+    try {
+      if (sessionId && !isDemoMode.value[caseId]) {
+        for await (const { type, payload } of streamTranscription(sessionId)) {
+          if (states.value[caseId] !== 'recording') break
+          if (type === 'transcript_line') transcripts.value[caseId].push(payload)
+          else if (type === 'error') throw new Error(payload.message)
+        }
+      } else {
+        for (const line of DEMO_TRANSCRIPT) {
+          if (states.value[caseId] !== 'recording') break
+          await new Promise(r => setTimeout(r, 900 + Math.random() * 600))
+          transcripts.value[caseId].push(line)
+        }
+      }
+      if (states.value[caseId] === 'recording') states.value[caseId] = 'done'
+    } catch (err) {
+      errors.value[caseId]  = err.message ?? 'Transcription failed'
+      states.value[caseId] = 'error'
+    } finally {
+      _stopTimer(caseId)
+    }
+  }
+
   /** Run RecommendationAgent on the session transcript. */
   async function captureDecisions(caseId) {
     states.value[caseId] = 'processing'
@@ -305,16 +343,15 @@ export const useMeetingStore = defineStore('meeting', () => {
   function confirmConsensus(caseId) {
     discussedCaseIds.value.add(caseId)
     states.value[caseId] = 'discussed'
-    _persist()
 
     const session = sessions.value[caseId]
     const isDemo  = isDemoMode.value[caseId] ?? false
 
-    // Persist session so it survives page reload on the post-meeting view
+    // Persist session within this browser tab so post-meeting survives a page reload
     if (session) {
-      const stored = JSON.parse(localStorage.getItem('ob_sessions') || '{}')
+      const stored = JSON.parse(sessionStorage.getItem('ob_sessions') || '{}')
       stored[caseId] = { ...session, is_demo: isDemo }
-      localStorage.setItem('ob_sessions', JSON.stringify(stored))
+      sessionStorage.setItem('ob_sessions', JSON.stringify(stored))
     }
 
     if (session && !isDemo) {
@@ -334,10 +371,9 @@ export const useMeetingStore = defineStore('meeting', () => {
     delete states.value[caseId]
     delete sessions.value[caseId]
     discussedCaseIds.value.delete(caseId)
-    _persist()
-    const stored = JSON.parse(localStorage.getItem('ob_sessions') || '{}')
+    const stored = JSON.parse(sessionStorage.getItem('ob_sessions') || '{}')
     delete stored[caseId]
-    localStorage.setItem('ob_sessions', JSON.stringify(stored))
+    sessionStorage.setItem('ob_sessions', JSON.stringify(stored))
     delete transcripts.value[caseId]
     delete decisions.value[caseId]
     delete elapsed.value[caseId]
@@ -350,6 +386,6 @@ export const useMeetingStore = defineStore('meeting', () => {
     sessions, transcripts, decisions, states, elapsed, errors, discussedCaseIds,
     getState, getSession, getTranscripts, getDecisions, getElapsed, getError,
     isDiscussed, getIsDemo, getIsAudio,
-    startRecording, stopRecording, captureDecisions, confirmConsensus, reset,
+    startRecording, resumeRecording, stopRecording, captureDecisions, confirmConsensus, reset,
   }
 })

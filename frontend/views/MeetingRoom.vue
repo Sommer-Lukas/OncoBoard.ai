@@ -81,6 +81,7 @@ const pipelineStatus = computed(() => agentsStore.getPipelineStatus(store.active
 const isRunning      = computed(() => pipelineStatus.value === 'running')
 const hasAgentData   = computed(() => Object.keys(agentsStore.getAgentRawData(store.activeId ?? '')).length > 0)
 const currentAgents  = computed(() => agentsStore.getForPatient(store.activeId ?? ''))
+const verification   = computed(() => agentsStore.getVerification(store.activeId ?? ''))
 
 // Meeting state for active case
 const meetingState   = computed(() => meeting.getState(store.activeId ?? ''))
@@ -184,7 +185,7 @@ function endMeeting() {
           </button>
         </div>
 
-        <CaseDisplay v-if="enrichedCaseData" :case-data="enrichedCaseData" />
+        <CaseDisplay v-if="enrichedCaseData" :case-data="enrichedCaseData" :verification="verification" />
         <div v-else class="loading-state">
           <span class="material-symbols-outlined" style="font-size:40px;color:#DADCE0">hourglass_empty</span>
           <div>Loading case data…</div>

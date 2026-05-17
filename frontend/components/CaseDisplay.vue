@@ -2,9 +2,11 @@
 import { ref, watch, onMounted } from 'vue'
 import { getPatientImages, getCaseGenomics, imageUrl } from '../src/services/api.js'
 import ImageLightbox from './ImageLightbox.vue'
+import VerificationChip from './VerificationChip.vue'
 
 const props = defineProps({
-  caseData: { type: Object, required: true },
+  caseData:     { type: Object, required: true },
+  verification: { type: Object, default: () => ({}) },
 })
 
 const tabs = [
@@ -80,6 +82,14 @@ function cnLabel(v) {
   if (v < 1.5) return 'Loss'
   return 'Normal'
 }
+
+// Returns { state: 'verified'|'unverified'|'none', verifiedBy, ts } for a given agent
+function verificationStatus(agentName, hasData) {
+  const v = props.verification?.[agentName]
+  if (v?.verified) return { state: 'verified', verifiedBy: v.verifiedBy, ts: v.ts }
+  if (hasData) return { state: 'unverified' }
+  return { state: 'none' }
+}
 </script>
 
 <template>
@@ -121,6 +131,7 @@ function cnLabel(v) {
               <span class="material-symbols-outlined" style="font-size: 16px">description</span>
               SummaryAgent
             </div>
+            <VerificationChip :status="verificationStatus('SummaryAgent', !!caseData.summaryNarrative)" />
           </div>
           <div class="content-card">
             <div class="field-label">Clinical Narrative</div>
@@ -148,6 +159,7 @@ function cnLabel(v) {
               <span class="material-symbols-outlined" style="font-size: 16px">description</span>
               SummaryAgent
             </div>
+            <VerificationChip :status="verificationStatus('SummaryAgent', false)" />
           </div>
           <div class="agent-pending-state">
             <span class="material-symbols-outlined" style="font-size: 32px; color: #BDC1C6">description</span>
@@ -179,6 +191,7 @@ function cnLabel(v) {
               · {{ caseData.radiologyFull.overall_birads_category }}
             </span>
           </div>
+          <VerificationChip :status="verificationStatus('RadiologyAgent', !!caseData.radiologyFull)" />
         </div>
         <template v-if="caseData.radiologyFull">
           <div class="content-card">
@@ -229,6 +242,7 @@ function cnLabel(v) {
             <span class="material-symbols-outlined" style="font-size: 16px">biotech</span>
             PathologyAgent
           </div>
+          <VerificationChip :status="verificationStatus('PathologyAgent', !!caseData.pathologyFull)" />
         </div>
         <template v-if="caseData.pathologyFull">
           <div class="content-card">
@@ -304,6 +318,7 @@ function cnLabel(v) {
             <span class="material-symbols-outlined" style="font-size: 16px">clinical_notes</span>
             GuidelineAgent<span v-if="caseData.guidelineFull?.matched_guideline"> · {{ caseData.guidelineFull.matched_guideline }}</span>
           </div>
+          <VerificationChip :status="verificationStatus('GuidelineAgent', !!caseData.guidelineFull)" />
         </div>
         <template v-if="caseData.guidelineFull">
           <div class="content-card">
@@ -356,6 +371,7 @@ function cnLabel(v) {
               · {{ caseData.trialFull.matched_trials.length }} trial(s) matched
             </span>
           </div>
+          <VerificationChip :status="verificationStatus('TrialAgent', !!caseData.trialFull)" />
         </div>
         <template v-if="caseData.trialFull">
           <div class="content-card" v-if="caseData.trialFull.agent_notes">
@@ -498,7 +514,10 @@ function cnLabel(v) {
 }
 
 /* Specialty badge */
-.specialty-header { margin-bottom: 16px; }
+.specialty-header {
+  margin-bottom: 16px;
+  display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+}
 
 .specialty-badge {
   display: inline-flex;
