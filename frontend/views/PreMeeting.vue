@@ -17,6 +17,8 @@ const caseData      = ref(null)
 // Reactive slice of the store — auto-updates as SSE events arrive
 const agents = computed(() => agentsStore.getForPatient(patientsStore.activeId ?? ''))
 const pipelineStatus = computed(() => agentsStore.getPipelineStatus(patientsStore.activeId ?? ''))
+const rawData = computed(() => agentsStore.getAgentRawData(patientsStore.activeId ?? ''))
+const verification = computed(() => agentsStore.getVerification(patientsStore.activeId ?? ''))
 
 const completedCount = computed(() => agents.value.filter(a => a.status === 'complete').length)
 const runningCount   = computed(() => agents.value.filter(a => a.status === 'running').length)
@@ -53,6 +55,13 @@ function openDatabase(agentName = null) {
 function closeDatabase() {
   showDatabase.value = false
   databaseFilter.value = null
+}
+
+function handleVerify(agentName) {
+  agentsStore.verifyAgent(patientsStore.activeId, agentName)
+}
+function handleUnverify(agentName) {
+  agentsStore.unverifyAgent(patientsStore.activeId, agentName)
 }
 </script>
 
@@ -186,8 +195,14 @@ function closeDatabase() {
               :key="agent.name"
               v-bind="agent"
               :style="{ '--i': i }"
+              :raw-data="rawData[agent.name] ?? null"
+              :verified="!!verification[agent.name]?.verified"
+              :verified-by="verification[agent.name]?.verifiedBy ?? null"
+              :verified-ts="verification[agent.name]?.ts ?? null"
               :on-database-click="agent.status === 'complete' ? openDatabase : null"
               @database-click="openDatabase"
+              @verify="handleVerify"
+              @unverify="handleUnverify"
             />
           </div>
         </div>

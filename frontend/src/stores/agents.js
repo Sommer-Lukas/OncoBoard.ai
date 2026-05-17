@@ -287,6 +287,29 @@ export const useAgentsStore = defineStore('agents', () => {
       .filter(a => a.status === 'running').length,
   )
 
+  // ── Verification ─────────────────────────────────────────────────────────
+  // { [caseId]: { [agentName]: { verified: bool, verifiedBy: string, ts: string } } }
+  const verifiedByCaseId = ref({})
+
+  function verifyAgent(caseId, agentName, verifiedBy = 'Nurse') {
+    if (!verifiedByCaseId.value[caseId]) verifiedByCaseId.value[caseId] = {}
+    verifiedByCaseId.value[caseId][agentName] = {
+      verified: true,
+      verifiedBy,
+      ts: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+    }
+  }
+
+  function unverifyAgent(caseId, agentName) {
+    if (verifiedByCaseId.value[caseId]) {
+      delete verifiedByCaseId.value[caseId][agentName]
+    }
+  }
+
+  function getVerification(caseId) {
+    return verifiedByCaseId.value[caseId] ?? {}
+  }
+
   // Backward-compat alias so any other caller of loadAgents still works
   const loadAgents = initCase
 
@@ -294,11 +317,15 @@ export const useAgentsStore = defineStore('agents', () => {
     agentsByCaseId,
     pipelineStatus,
     rawDataByCaseId,
+    verifiedByCaseId,
     initCase,
     loadAgents,
     getForPatient,
     getPipelineStatus,
     getAgentRawData,
+    verifyAgent,
+    unverifyAgent,
+    getVerification,
     runPipeline,
     runningCount,
     postAgentsByCaseId,

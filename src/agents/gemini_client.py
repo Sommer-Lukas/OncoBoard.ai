@@ -46,17 +46,22 @@ class RealGeminiClient:
 
     def __init__(
         self,
-        api_key: str,
         model_pro: str,
         model_flash: str,
         model_vision: str,
         *,
+        api_key: str = "",
+        project: str = "",
+        location: str = "us-central1",
         max_retries: int = 2,
         base_backoff_s: float = 0.5,
     ) -> None:
         from google import genai
 
-        self._client = genai.Client(api_key=api_key)
+        if api_key:
+            self._client = genai.Client(api_key=api_key)
+        else:
+            self._client = genai.Client(vertexai=True, project=project, location=location)
         self._models: dict[ModelTier, str] = {
             "pro": model_pro,
             "flash": model_flash,
@@ -101,7 +106,7 @@ class RealGeminiClient:
                     except OSError:
                         pass
             parts.append(genai_types.Part.from_text(text=prompt))
-            contents: Any = genai_types.Content(parts=parts)
+            contents: Any = genai_types.Content(role="user", parts=parts)
         else:
             contents = prompt
 
@@ -198,14 +203,16 @@ def get_gemini_client(settings: Settings | None = None) -> GeminiClient:
     if _singleton is not None:
         return _singleton
     s = settings or get_settings()
-    if s.gemini_mock or not s.gemini_api_key:
+    if s.gemini_mock:
         _singleton = MockGeminiClient()
     else:
         _singleton = RealGeminiClient(
-            api_key=s.gemini_api_key,
             model_pro=s.gemini_model_pro,
             model_flash=s.gemini_model_flash,
             model_vision=s.gemini_model_vision,
+            api_key=s.gemini_api_key,
+            project=s.gemini_project,
+            location=s.gemini_location,
         )
     return _singleton
 

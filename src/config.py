@@ -13,6 +13,8 @@ class Settings(BaseSettings):
     )
 
     gemini_api_key: str = Field(default="", alias="GEMINI_API_KEY")
+    gemini_project: str = Field(default="", alias="GEMINI_PROJECT")
+    gemini_location: str = Field(default="us-central1", alias="GEMINI_LOCATION")
     gemini_mock: bool = Field(default=False, alias="GEMINI_MOCK")
     gemini_model_pro: str = Field(default="gemini-2.5-pro", alias="GEMINI_MODEL_PRO")
     gemini_model_flash: str = Field(default="gemini-2.5-flash", alias="GEMINI_MODEL_FLASH")

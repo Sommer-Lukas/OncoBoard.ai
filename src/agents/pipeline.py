@@ -93,20 +93,19 @@ async def run_pre_meeting(
     for agent in parallel:
         yield PipelineEvent("agent", agent.name, "running", run_id)
 
-    results = await asyncio.gather(
-        *[agent.execute(db, case_id, run_id=run_id) for agent in parallel],
-        return_exceptions=True,
-    )
+    queue: asyncio.Queue[PipelineEvent] = asyncio.Queue()
 
-    for agent, result in zip(parallel, results):
-        if isinstance(result, BaseException):
-            yield PipelineEvent(
-                "agent", agent.name, "error", run_id, {"error": str(result)}
-            )
-        else:
-            yield PipelineEvent(
-                "agent", agent.name, "done", run_id, result.model_dump()
-            )
+    async def _run_and_enqueue(ag) -> None:
+        try:
+            result = await ag.execute(db, case_id, run_id=run_id)
+            await queue.put(PipelineEvent("agent", ag.name, "done", run_id, result.model_dump()))
+        except Exception as exc:
+            await queue.put(PipelineEvent("agent", ag.name, "error", run_id, {"error": str(exc)}))
+
+    tasks = [asyncio.create_task(_run_and_enqueue(ag)) for ag in parallel]
+    for _ in parallel:
+        yield await queue.get()
+    await asyncio.gather(*tasks)
 
     # ── Step 3: SummaryAgent (sequential, depends on CaseCompiler) ───────────
     summary = SummaryAgent(gemini=gemini)
