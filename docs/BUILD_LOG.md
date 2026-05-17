@@ -13,6 +13,7 @@ The build plan that drives these stages lives in `~/.claude/plans/hazy-snacking-
 | 4 | Agent framework (BaseAgent + MockGeminiClient) | ✅ landed |
 | 5 | Vertical slice: CaseCompiler + SummaryAgent + SSE route | ✅ landed |
 | 6 | Test infrastructure (pytest + mocked Gemini) | ✅ landed |
+| — | Post-plan: CI on push, full agent roster, post-meeting phase | ✅ landed |
 
 > **How to add an entry:** append a new `## Stage N — Title` section at the bottom following the template at the end of this file. Keep entries short — link to the commit for code, document only the *why* and *what changed*.
 
@@ -281,8 +282,84 @@ Or run it live: `uvicorn src.main:app` then `POST /cases/SYN-002/pre-meeting/run
 
 ---
 
+## Post-plan work — full 14-agent pipeline + hardening
+
+The original 6-stage plan delivered the foundation through a working vertical
+slice. Everything below landed after, completing the system to all 14 agents
+across the three phases plus the human gates. The pre/during-meeting agents
+and the Vue frontend were largely contributed by a teammate (Lukas); the
+items below are the backend completion + hardening done here.
+
+### CI on push — PR #14
+GitHub Actions runs `pytest -q` (Ubuntu, Python 3.13, pip-cached) on every
+push and on PRs to master. Fully mocked suite — no `GEMINI_API_KEY` or
+secrets. It caught a real mid-stream regression within a day.
+
+### Module-naming consistency — PRs #16, #17
+Standardized agent modules to PascalCase (matching the majority in
+`src/agents/`) and fixed the `HistoyCaseAgent.py` → `HistoryCaseAgent.py`
+filename typo (the class was always spelled correctly; only the file +
+its one import were wrong). `git mv`, history preserved, no behavior change.
+
+### TrialAgent ClinicalTrials.gov v2 robustness — PR #18
+Added an identifying `User-Agent` + `Accept` header (the default
+`python-httpx` UA gets 403'd by CT.gov's edge, silently returning zero
+trials for every patient) and dropped the brittle legacy `fields` param.
+Added `tests/test_trial_agent.py` against a realistic mocked v2 payload —
+the agent's success path had never been exercised before.
+
+### Test-coverage backfill — PRs #19, #20
+Happy-path coverage for the 5 parallel pre-meeting agents (previously only
+their error path was tested, since `test_pipeline_api` deliberately fails
+them all) and full route coverage for `src/api/meeting.py` (session
+create, transcribe SSE, audio upload, recommend, status patch).
+
+### Post-meeting phase — PR #21
+The final 4 agents + orchestration + human gates. See the dedicated entry
+below.
+
+---
+
+## Post-meeting phase
+- **Branch:** `feature/post-meeting-phase`
+- **Commit:** `b2b2289` (PR #21)
+- **Landed:** 2026-05-17
+
+### What landed
+| File | Purpose |
+|---|---|
+| `src/agents/NoteDraftAgent.py` | Pro. Transcript + confirmed RecommendationAgent output → structured `TumorBoardNote` for EHR entry |
+| `src/agents/ActionDispatchAgent.py` | Flash. Parses the recommendation into action items, writes each to the `actions` table, returns persisted ids |
+| `src/agents/FollowUpAgent.py` | Flash. Deterministic overdue detection (due_date vs today) over `actions`; Gemini only authors the escalation note |
+| `src/agents/SchedulingAgent.py` | Flash. Flags whether the case needs re-presentation at a future board |
+| `src/agents/post_meeting_pipeline.py` | Phase A `NoteDraft‖ActionDispatch`, then Phase B `FollowUp‖Scheduling`; per-agent failures non-fatal |
+| `src/api/post_meeting.py` | `gate2/confirm` (Human Gate 2), `post-meeting/run` (SSE), `gate3/approve` (Human Gate 3) |
+| `tests/test_post_meeting.py` | 9 tests: agent happy paths, recommendation prereq, deterministic overdue, pipeline order, Gate-2 enforcement, full gate2→SSE→gate3 flow, 404s |
+
+### Decisions worth knowing
+- **Human Gate 2 is a hard stop.** `POST /sessions/{id}/post-meeting/run` returns **409** unless a `consensus_confirmed` gate row exists for the session — enforces ARCHITECTURE.md §2 ("post-meeting agents never run before Human Gate 2") at the API boundary, not just by convention.
+- **Phase B depends on Phase A's writes.** FollowUp/Scheduling read the `actions` ActionDispatch writes, so the two phases are sequential even though agents within each phase fan out in parallel.
+- **Confirmed recommendation read via `get_latest_agent_output`** — no `repository.py` change needed; avoids adding a `get_recommendation` helper.
+- **FollowUp overdue logic is deterministic**, not model-authored — date math over the actions table is fed to Gemini, which only writes the escalation narrative. Keeps the overdue facts testable and trustworthy.
+- **Parallel-agent tests use a schema-routing fake Gemini** (returns the payload matching the requested `response_schema`), so `asyncio.gather` scheduling can't make them flaky.
+
+### Verify locally
+```powershell
+.\.venv\Scripts\python.exe -m pytest tests/test_post_meeting.py -q
+```
+
+### State
+All 14 agents implemented across pre/during/post-meeting + 3 human gates.
+**78 tests, CI-gated.** Backend is feature-complete.
+
+---
+
 ## Up next
-The original 6-stage plan is **complete**. Next candidates (not yet scheduled): extend the pre-meeting pipeline with the remaining 5 agents + parallel fan-out; make `BaseAgent.model_tier` optional for deterministic agents; CI workflow to run `pytest` on push.
+Backend is feature-complete and fully tested. Only remaining item: the
+untracked `assets/agents/*.png` icon set (frontend art — needs a
+deliberate commit if the Vue app uses it). Optional polish: make
+`BaseAgent.model_tier` optional for the deterministic agents
+(CaseCompiler/DisplayAgent) so they don't declare an unused tier.
 
 ---
 

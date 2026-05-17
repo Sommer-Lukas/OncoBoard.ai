@@ -129,8 +129,9 @@ Branding.md        # Design tokens — colors, typography, spacing
 | 4 | Agent framework (BaseAgent + MockGeminiClient) | ✅ |
 | 5 | Vertical slice: CaseCompiler + SummaryAgent + SSE route | ✅ |
 | 6 | Test infrastructure (pytest + mocked Gemini) | ✅ |
+| — | Post-plan: CI on push, all 14 agents, post-meeting phase + human gates | ✅ |
 
-Full stage-by-stage detail — file lists, decisions, smoke-test commands — in [`docs/BUILD_LOG.md`](docs/BUILD_LOG.md).
+Backend is feature-complete: all 14 agents across pre/during/post-meeting, 3 human gates, 78 CI-gated tests. Full stage-by-stage detail — file lists, decisions, verify commands — in [`docs/BUILD_LOG.md`](docs/BUILD_LOG.md).
 
 ---
 
