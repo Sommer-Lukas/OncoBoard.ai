@@ -9,6 +9,7 @@ class _ORMModel(BaseModel):
 
 class Case(_ORMModel):
     case_id: str
+    patient_name: str | None = None
     age_at_diagnosis: int | None = None
     gender: str | None = None
     race: str | None = None

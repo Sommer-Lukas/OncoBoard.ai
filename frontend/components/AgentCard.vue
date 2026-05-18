@@ -27,15 +27,6 @@ const statusConfig = {
 
 const config = computed(() => statusConfig[props.status] ?? statusConfig.idle)
 
-const formattedOutput = computed(() => {
-  if (!props.rawData) return props.output ?? 'No output available.'
-  try {
-    return JSON.stringify(props.rawData, null, 2)
-  } catch {
-    return props.output ?? 'No output available.'
-  }
-})
-
 const matchedTrials = computed(() =>
   Array.isArray(props.rawData?.matched_trials) ? props.rawData.matched_trials : []
 )
@@ -43,6 +34,15 @@ const matchedTrials = computed(() =>
 const pubmedRefs = computed(() =>
   Array.isArray(props.rawData?.pubmed_references) ? props.rawData.pubmed_references : []
 )
+
+// Status badge helper for CaseCompiler
+function gapSeverityStyle(severity) {
+  if (!severity) return { bg: '#F8F9FA', color: '#5F6368' }
+  const s = severity.toLowerCase()
+  if (s === 'critical') return { bg: '#FCE8E6', color: '#C5221F' }
+  if (s === 'warning')  return { bg: '#FEF7E0', color: '#B06000' }
+  return { bg: '#F8F9FA', color: '#5F6368' }
+}
 
 function handleCardClick() {
   if (props.status === 'complete') modalOpen.value = true
@@ -166,52 +166,293 @@ function handleModalVerify() {
           </div>
 
           <div class="modal-body">
-            <!-- Trial quick-links (only for TrialAgent output) -->
-            <div v-if="matchedTrials.length" class="trial-links-section">
-              <div class="trial-links-label">
-                <span class="material-symbols-outlined" style="font-size:14px">science</span>
-                Matched Trials — open on ClinicalTrials.gov
-              </div>
-              <div class="trial-links-list">
-                <a
-                  v-for="trial in matchedTrials"
-                  :key="trial.nct_id"
-                  :href="`https://clinicaltrials.gov/study/${trial.nct_id}`"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  class="trial-link-pill"
-                >
-                  <span class="trial-link-id">{{ trial.nct_id }}</span>
-                  <span v-if="trial.phase" class="trial-link-phase">{{ trial.phase }}</span>
-                  <span class="material-symbols-outlined" style="font-size:13px;opacity:.7">open_in_new</span>
-                </a>
-              </div>
-            </div>
 
-            <!-- PubMed quick-links (only for TrialAgent output) -->
-            <div v-if="pubmedRefs.length" class="trial-links-section pubmed-links-section">
-              <div class="trial-links-label">
-                <span class="material-symbols-outlined" style="font-size:14px">bookmark</span>
-                PubMed References — open on PubMed
+            <!-- ── CaseCompiler ── -->
+            <template v-if="name === 'CaseCompiler' && rawData">
+              <div class="readable-section">
+                <div class="rs-label">Case Overview</div>
+                <div class="kv-grid">
+                  <template v-for="(v, k) in rawData.clinical" :key="k">
+                    <span class="kv-key">{{ k.replace(/_/g, ' ') }}</span>
+                    <span class="kv-val">{{ v ?? '—' }}</span>
+                  </template>
+                </div>
               </div>
-              <div class="trial-links-list">
-                <a
-                  v-for="ref in pubmedRefs"
-                  :key="ref.pmid"
-                  :href="`https://pubmed.ncbi.nlm.nih.gov/${ref.pmid}/`"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  class="trial-link-pill pubmed-pill"
-                  :title="ref.title ?? `PMID ${ref.pmid}`"
-                >
-                  <span class="trial-link-id">PMID {{ ref.pmid }}</span>
-                  <span v-if="ref.source" class="trial-link-phase">{{ ref.source }}</span>
-                  <span class="material-symbols-outlined" style="font-size:13px;opacity:.7">open_in_new</span>
-                </a>
+              <div v-if="rawData.genomics" class="readable-section">
+                <div class="rs-label">Genomics</div>
+                <div class="kv-grid">
+                  <template v-for="(v, k) in rawData.genomics" :key="k">
+                    <span class="kv-key">{{ k.replace(/_/g, ' ') }}</span>
+                    <span class="kv-val">{{ v ?? '—' }}</span>
+                  </template>
+                </div>
               </div>
-            </div>
+              <div class="readable-section">
+                <div class="rs-label">Record Summary</div>
+                <div class="kv-grid">
+                  <span class="kv-key">Files attached</span>
+                  <span class="kv-val">{{ rawData.file_count }}</span>
+                  <span class="kv-key">Ready for review</span>
+                  <span class="kv-val">{{ rawData.ready_for_review ? 'Yes' : 'No' }}</span>
+                </div>
+              </div>
+              <div v-if="rawData.data_gaps?.length" class="readable-section">
+                <div class="rs-label">Data Gaps</div>
+                <div class="gap-list">
+                  <div v-for="(gap, i) in rawData.data_gaps" :key="i" class="gap-item">
+                    <span class="gap-badge"
+                      :style="{ background: gapSeverityStyle(gap.severity).bg, color: gapSeverityStyle(gap.severity).color }">
+                      {{ gap.severity ?? 'info' }}
+                    </span>
+                    <span class="gap-msg">{{ gap.message ?? gap }}</span>
+                  </div>
+                </div>
+              </div>
+            </template>
 
-            <pre class="output-pre">{{ formattedOutput }}</pre>
+            <!-- ── SummaryAgent ── -->
+            <template v-else-if="name === 'SummaryAgent' && rawData">
+              <div class="readable-section">
+                <div class="rs-label">Clinical Narrative</div>
+                <p class="narrative-text">{{ rawData.narrative }}</p>
+              </div>
+              <div v-if="rawData.key_points?.length" class="readable-section">
+                <div class="rs-label">Key Points</div>
+                <ul class="bullet-list">
+                  <li v-for="(pt, i) in rawData.key_points" :key="i">{{ pt }}</li>
+                </ul>
+              </div>
+              <div v-if="rawData.data_gaps_flagged?.length" class="readable-section">
+                <div class="rs-label">Gaps Flagged</div>
+                <ul class="bullet-list warn">
+                  <li v-for="(g, i) in rawData.data_gaps_flagged" :key="i">{{ g }}</li>
+                </ul>
+              </div>
+            </template>
+
+            <!-- ── RadiologyAgent ── -->
+            <template v-else-if="name === 'RadiologyAgent' && rawData">
+              <div class="readable-section">
+                <div class="rs-label">Radiologist Impression</div>
+                <p class="narrative-text">{{ rawData.radiologist_impression }}</p>
+              </div>
+              <div class="readable-section">
+                <div class="rs-label">BI-RADS Classification</div>
+                <div class="kv-grid">
+                  <span class="kv-key">Overall category</span>
+                  <span class="kv-val highlight">{{ rawData.overall_birads_category }}</span>
+                  <span class="kv-key">Breast density</span>
+                  <span class="kv-val">{{ rawData.breast_density }}</span>
+                  <span class="kv-key">Modalities reviewed</span>
+                  <span class="kv-val">{{ rawData.imaging_modalities_reviewed?.join(', ') ?? '—' }}</span>
+                </div>
+              </div>
+              <div v-if="rawData.mass_findings?.length" class="readable-section">
+                <div class="rs-label">Mass Findings</div>
+                <ul class="bullet-list">
+                  <li v-for="(f, i) in rawData.mass_findings" :key="i">{{ f }}</li>
+                </ul>
+              </div>
+              <div v-if="rawData.calcification_findings?.length" class="readable-section">
+                <div class="rs-label">Calcification Findings</div>
+                <ul class="bullet-list">
+                  <li v-for="(f, i) in rawData.calcification_findings" :key="i">{{ f }}</li>
+                </ul>
+              </div>
+              <div v-if="rawData.associated_features?.length" class="readable-section">
+                <div class="rs-label">Associated Features</div>
+                <ul class="bullet-list">
+                  <li v-for="(f, i) in rawData.associated_features" :key="i">{{ f }}</li>
+                </ul>
+              </div>
+              <div v-if="rawData.comparison_with_prior" class="readable-section">
+                <div class="rs-label">Comparison with Prior</div>
+                <p class="narrative-text">{{ rawData.comparison_with_prior }}</p>
+              </div>
+              <div v-if="rawData.data_gaps?.length" class="readable-section">
+                <div class="rs-label">Data Gaps</div>
+                <ul class="bullet-list warn">
+                  <li v-for="(g, i) in rawData.data_gaps" :key="i">{{ g }}</li>
+                </ul>
+              </div>
+            </template>
+
+            <!-- ── PathologyAgent ── -->
+            <template v-else-if="name === 'PathologyAgent' && rawData">
+              <div class="readable-section">
+                <div class="rs-label">Synoptic Summary</div>
+                <p class="narrative-text">{{ rawData.synoptic_summary }}</p>
+              </div>
+              <div v-if="rawData.ihc_profile && Object.keys(rawData.ihc_profile).length" class="readable-section">
+                <div class="rs-label">IHC Profile</div>
+                <div class="kv-grid">
+                  <template v-for="(v, k) in rawData.ihc_profile" :key="k">
+                    <span class="kv-key">{{ k }}</span>
+                    <span class="kv-val">{{ v }}</span>
+                  </template>
+                </div>
+              </div>
+              <div class="readable-section">
+                <div class="rs-label">Molecular Subtype</div>
+                <p class="narrative-text">{{ rawData.molecular_subtype_interpretation }}</p>
+              </div>
+              <div v-if="rawData.driver_alterations?.length" class="readable-section">
+                <div class="rs-label">Driver Alterations</div>
+                <ul class="bullet-list">
+                  <li v-for="(a, i) in rawData.driver_alterations" :key="i">{{ a }}</li>
+                </ul>
+              </div>
+              <div v-if="rawData.prognostic_markers?.length" class="readable-section">
+                <div class="rs-label">Prognostic Markers</div>
+                <ul class="bullet-list">
+                  <li v-for="(m, i) in rawData.prognostic_markers" :key="i">{{ m }}</li>
+                </ul>
+              </div>
+              <div v-if="rawData.pathologist_comment" class="readable-section">
+                <div class="rs-label">Pathologist Comment</div>
+                <p class="narrative-text muted">{{ rawData.pathologist_comment }}</p>
+              </div>
+              <div v-if="rawData.data_gaps?.length" class="readable-section">
+                <div class="rs-label">Data Gaps</div>
+                <ul class="bullet-list warn">
+                  <li v-for="(g, i) in rawData.data_gaps" :key="i">{{ g }}</li>
+                </ul>
+              </div>
+            </template>
+
+            <!-- ── GuidelineAgent ── -->
+            <template v-else-if="name === 'GuidelineAgent' && rawData">
+              <div class="readable-section">
+                <div class="rs-label">Matched Guideline</div>
+                <div class="kv-grid">
+                  <span class="kv-key">Guideline</span>
+                  <span class="kv-val highlight">{{ rawData.matched_guideline }}</span>
+                  <span class="kv-key">Pathway</span>
+                  <span class="kv-val">{{ rawData.guideline_pathway }}</span>
+                  <span class="kv-key">Category</span>
+                  <span class="kv-val">{{ rawData.recommendation_category }}</span>
+                  <span class="kv-key">Evidence level</span>
+                  <span class="kv-val">{{ rawData.evidence_level }}</span>
+                </div>
+              </div>
+              <div v-if="rawData.systemic_therapy_options?.length" class="readable-section">
+                <div class="rs-label">Systemic Therapy Options</div>
+                <ul class="bullet-list">
+                  <li v-for="(o, i) in rawData.systemic_therapy_options" :key="i">{{ o }}</li>
+                </ul>
+              </div>
+              <div v-if="rawData.endocrine_therapy_options?.length" class="readable-section">
+                <div class="rs-label">Endocrine Therapy Options</div>
+                <ul class="bullet-list">
+                  <li v-for="(o, i) in rawData.endocrine_therapy_options" :key="i">{{ o }}</li>
+                </ul>
+              </div>
+              <div v-if="rawData.radiation_considerations" class="readable-section">
+                <div class="rs-label">Radiation Considerations</div>
+                <p class="narrative-text">{{ rawData.radiation_considerations }}</p>
+              </div>
+              <div v-if="rawData.surgery_considerations" class="readable-section">
+                <div class="rs-label">Surgery Considerations</div>
+                <p class="narrative-text">{{ rawData.surgery_considerations }}</p>
+              </div>
+              <div class="readable-section">
+                <div class="rs-label">Protocol Rationale</div>
+                <p class="narrative-text">{{ rawData.protocol_rationale }}</p>
+              </div>
+              <div v-if="rawData.data_gaps?.length" class="readable-section">
+                <div class="rs-label">Data Gaps</div>
+                <ul class="bullet-list warn">
+                  <li v-for="(g, i) in rawData.data_gaps" :key="i">{{ g }}</li>
+                </ul>
+              </div>
+            </template>
+
+            <!-- ── TrialAgent ── -->
+            <template v-else-if="name === 'TrialAgent' && rawData">
+              <div class="readable-section">
+                <div class="rs-label">Search Criteria</div>
+                <div class="kv-grid">
+                  <template v-for="(v, k) in rawData.search_criteria" :key="k">
+                    <span class="kv-key">{{ k.replace(/_/g, ' ') }}</span>
+                    <span class="kv-val">{{ v ?? '—' }}</span>
+                  </template>
+                  <span class="kv-key">Trials retrieved</span>
+                  <span class="kv-val">{{ rawData.trials_retrieved }}</span>
+                </div>
+              </div>
+              <div v-if="matchedTrials.length" class="readable-section">
+                <div class="rs-label">Matched Trials</div>
+                <div v-for="trial in matchedTrials" :key="trial.nct_id" class="trial-card">
+                  <div class="trial-card-top">
+                    <a :href="`https://clinicaltrials.gov/study/${trial.nct_id}`" target="_blank" rel="noopener noreferrer" class="trial-nct-link">
+                      {{ trial.nct_id }}
+                      <span class="material-symbols-outlined" style="font-size:12px;vertical-align:middle">open_in_new</span>
+                    </a>
+                    <span v-if="trial.phase" class="trial-link-phase">{{ trial.phase }}</span>
+                    <span class="trial-status-badge">{{ trial.overall_status }}</span>
+                  </div>
+                  <div class="trial-title">{{ trial.title }}</div>
+                  <div v-if="trial.eligibility_delta" class="trial-eligibility">
+                    <span class="material-symbols-outlined" style="font-size:13px;color:#1A73E8">difference</span>
+                    {{ trial.eligibility_delta }}
+                  </div>
+                  <div v-if="trial.brief_summary" class="trial-summary-text">{{ trial.brief_summary }}</div>
+                </div>
+              </div>
+              <div v-if="pubmedRefs.length" class="readable-section">
+                <div class="rs-label">PubMed References</div>
+                <div v-for="ref in pubmedRefs" :key="ref.pmid" class="pubmed-card">
+                  <a :href="`https://pubmed.ncbi.nlm.nih.gov/${ref.pmid}/`" target="_blank" rel="noopener noreferrer" class="pubmed-pmid-link">
+                    PMID {{ ref.pmid }}
+                    <span class="material-symbols-outlined" style="font-size:12px;vertical-align:middle">open_in_new</span>
+                  </a>
+                  <span v-if="ref.source" class="pubmed-source">{{ ref.source }}</span>
+                  <div v-if="ref.title" class="pubmed-title">{{ ref.title }}</div>
+                </div>
+              </div>
+              <div v-if="rawData.agent_notes" class="readable-section">
+                <div class="rs-label">Agent Notes</div>
+                <p class="narrative-text muted">{{ rawData.agent_notes }}</p>
+              </div>
+            </template>
+
+            <!-- ── HistoryCaseAgent ── -->
+            <template v-else-if="name === 'HistoryCaseAgent' && rawData">
+              <div class="readable-section">
+                <div class="rs-label">Search Basis</div>
+                <p class="narrative-text">{{ rawData.search_basis }}</p>
+              </div>
+              <div v-if="rawData.analogous_cases?.length" class="readable-section">
+                <div class="rs-label">Analogous Cases</div>
+                <div v-for="c in rawData.analogous_cases" :key="c.case_id" class="history-card">
+                  <div class="history-card-id">{{ c.case_id }}</div>
+                  <div class="kv-grid compact">
+                    <span class="kv-key">Receptor match</span>
+                    <span class="kv-val">{{ c.receptor_match }}</span>
+                    <span class="kv-key">Stage match</span>
+                    <span class="kv-val">{{ c.stage_match }}</span>
+                    <span v-if="c.treatment_summary" class="kv-key">Treatment</span>
+                    <span v-if="c.treatment_summary" class="kv-val">{{ c.treatment_summary }}</span>
+                    <span v-if="c.outcome_note" class="kv-key">Outcome</span>
+                    <span v-if="c.outcome_note" class="kv-val">{{ c.outcome_note }}</span>
+                  </div>
+                  <p class="history-rationale">{{ c.similarity_rationale }}</p>
+                </div>
+              </div>
+              <div v-else class="readable-section">
+                <p class="narrative-text muted">No analogous cases found in the database.</p>
+              </div>
+              <div v-if="rawData.agent_notes" class="readable-section">
+                <div class="rs-label">Agent Notes</div>
+                <p class="narrative-text muted">{{ rawData.agent_notes }}</p>
+              </div>
+            </template>
+
+            <!-- ── Fallback: raw JSON ── -->
+            <template v-else>
+              <pre class="output-pre">{{ rawData ? JSON.stringify(rawData, null, 2) : (output ?? 'No output available.') }}</pre>
+            </template>
+
           </div>
 
           <div v-if="verified" class="modal-verified-banner">
@@ -507,6 +748,114 @@ function handleModalVerify() {
   color: #202124;
   white-space: pre-wrap;
   word-break: break-word;
+}
+
+/* ── Readable agent output ── */
+.readable-section {
+  margin-bottom: 20px;
+}
+.readable-section:last-child { margin-bottom: 0; }
+
+.rs-label {
+  font-size: 10px; font-weight: 700; letter-spacing: 0.07em;
+  text-transform: uppercase; color: #80868B;
+  margin-bottom: 8px;
+}
+
+.narrative-text {
+  margin: 0; font-size: 14px; color: #202124; line-height: 1.65;
+}
+.narrative-text.muted { color: #5F6368; }
+
+.kv-grid {
+  display: grid;
+  grid-template-columns: max-content 1fr;
+  gap: 5px 16px;
+  font-size: 13px;
+}
+.kv-grid.compact { gap: 3px 12px; font-size: 12.5px; }
+
+.kv-key {
+  color: #5F6368; white-space: nowrap;
+  text-transform: capitalize;
+}
+.kv-val { color: #202124; word-break: break-word; }
+.kv-val.highlight { font-weight: 600; color: #174EA6; }
+
+.bullet-list {
+  margin: 0; padding-left: 18px;
+  display: flex; flex-direction: column; gap: 4px;
+  font-size: 13.5px; color: #202124; line-height: 1.5;
+}
+.bullet-list.warn { color: #B06000; }
+.bullet-list.warn li::marker { color: #F29900; }
+
+.gap-list { display: flex; flex-direction: column; gap: 6px; }
+.gap-item { display: flex; align-items: flex-start; gap: 8px; }
+.gap-badge {
+  font-size: 10px; font-weight: 700; text-transform: uppercase;
+  padding: 1px 7px; border-radius: 999px; flex-shrink: 0;
+  letter-spacing: 0.05em; margin-top: 1px;
+}
+.gap-msg { font-size: 13px; color: #202124; line-height: 1.5; }
+
+/* ── Trial cards ── */
+.trial-card {
+  background: #F8FBFF; border: 1px solid #C5D9F7; border-radius: 10px;
+  padding: 12px 14px; margin-bottom: 10px;
+}
+.trial-card:last-child { margin-bottom: 0; }
+
+.trial-card-top {
+  display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
+  margin-bottom: 5px;
+}
+.trial-nct-link {
+  font-family: 'Roboto Mono', monospace; font-size: 13px; font-weight: 600;
+  color: #1967D2; text-decoration: none;
+}
+.trial-nct-link:hover { text-decoration: underline; }
+
+.trial-status-badge {
+  font-size: 10px; font-weight: 600; text-transform: uppercase;
+  padding: 1px 7px; border-radius: 999px; letter-spacing: 0.05em;
+  background: #E6F4EA; color: #137333;
+}
+.trial-title { font-size: 13px; color: #202124; margin-bottom: 6px; line-height: 1.45; }
+.trial-eligibility {
+  display: flex; align-items: flex-start; gap: 5px;
+  font-size: 12px; color: #174EA6; margin-bottom: 5px; line-height: 1.45;
+}
+.trial-summary-text { font-size: 12px; color: #5F6368; line-height: 1.5; }
+
+/* ── PubMed cards ── */
+.pubmed-card {
+  background: #F2FBF4; border: 1px solid #CEEAD6; border-radius: 10px;
+  padding: 10px 14px; margin-bottom: 8px;
+  display: flex; flex-direction: column; gap: 3px;
+}
+.pubmed-card:last-child { margin-bottom: 0; }
+.pubmed-pmid-link {
+  font-family: 'Roboto Mono', monospace; font-size: 12.5px; font-weight: 600;
+  color: #137333; text-decoration: none;
+}
+.pubmed-pmid-link:hover { text-decoration: underline; }
+.pubmed-source { font-size: 11px; color: #5F6368; }
+.pubmed-title  { font-size: 12.5px; color: #202124; line-height: 1.45; }
+
+/* ── History case cards ── */
+.history-card {
+  background: #F8F9FA; border: 1px solid #E8EAED; border-radius: 10px;
+  padding: 12px 14px; margin-bottom: 10px;
+}
+.history-card:last-child { margin-bottom: 0; }
+.history-card-id {
+  font-family: 'Roboto Mono', monospace; font-size: 12px; font-weight: 600;
+  color: #5F6368; margin-bottom: 8px;
+}
+.history-rationale {
+  margin: 8px 0 0; font-size: 12.5px; color: #5F6368;
+  line-height: 1.5; font-style: italic;
 }
 
 .modal-verified-banner {

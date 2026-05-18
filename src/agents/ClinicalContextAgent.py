@@ -95,7 +95,7 @@ class ClinicalContextAgent:
         if phase in ("mid", "post"):
             # Find the most recent session for this case
             cur = await db.execute(
-                "SELECT session_id FROM sessions WHERE case_id = ? ORDER BY created_at DESC LIMIT 1",
+                "SELECT session_id FROM sessions WHERE case_id = ? ORDER BY started_at DESC LIMIT 1",
                 (case_id,),
             )
             row = await cur.fetchone()
@@ -109,7 +109,7 @@ class ClinicalContextAgent:
         # Post: actions
         if phase == "post":
             cur = await db.execute(
-                "SELECT owner, description, due_date, status FROM actions WHERE case_id = ? ORDER BY created_at",
+                "SELECT a.owner, a.description, a.due_date, a.status FROM actions a JOIN sessions s ON a.session_id = s.session_id WHERE s.case_id = ? ORDER BY a.created_at",
                 (case_id,),
             )
             rows = await cur.fetchall()

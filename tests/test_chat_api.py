@@ -1,18 +1,11 @@
-"""ClinicalContextAgent (RAG) + /cases/{id}/chat coverage.
-
-Locks in the working "pre" phase + the route guards, and documents two
-real schema-mismatch bugs in _build_context's raw SQL via strict xfail
-(so CI flags them the moment they're fixed and the markers can go).
-"""
-import sqlite3
-
+"""ClinicalContextAgent (RAG) + /cases/{id}/chat coverage."""
 import pytest
 
 from src.agents.ClinicalContextAgent import ClinicalContextAgent
 from src.agents.gemini_client import MockGeminiClient, get_gemini_client
 from src.db import repository as repo
 from src.db.connection import connect
-from src.db.models import AgentOutput, Case, Session, Transcript
+from src.db.models import Action, AgentOutput, Case, Session, Transcript
 
 _NOW = "2026-05-18T00:00:00+00:00"
 
@@ -114,14 +107,6 @@ async def test_chat_route_422_empty_messages(client):
 
 # ── documented bugs: _build_context raw SQL vs actual schema ─────────────────
 # sessions has no `created_at` (it's `started_at`); actions has no `case_id`
-# (it's keyed by `session_id`). Both fire for mid/post phases. Strict xfail so
-# the suite stays green now but flags loudly the moment either is fixed.
-
-@pytest.mark.xfail(
-    raises=sqlite3.OperationalError, strict=True,
-    reason="ClinicalContextAgent mid-phase: sessions query uses ORDER BY "
-           "created_at, but sessions has no created_at column (it's started_at)",
-)
 async def test_chat_mid_phase_pulls_transcript(db):
     await _seed_case(db)
     await repo.create_session(db, Session(
@@ -137,15 +122,13 @@ async def test_chat_mid_phase_pulls_transcript(db):
     assert "MEETING TRANSCRIPT" in mock.calls[0]["prompt"]
 
 
-@pytest.mark.xfail(
-    raises=sqlite3.OperationalError, strict=True,
-    reason="ClinicalContextAgent post-phase: same sessions.created_at bug, plus "
-           "actions query uses WHERE case_id but actions is keyed by session_id",
-)
 async def test_chat_post_phase_pulls_actions(db):
     await _seed_case(db)
     await repo.create_session(db, Session(
         session_id="s1", case_id="SYN-001", started_at=_NOW, status="post_meeting"))
+    await repo.add_action(db, Action(
+        session_id="s1", description="Order MRI follow-up", owner="Dr. Smith",
+        due_date="2026-06-01", status="open", created_at=_NOW))
     mock = MockGeminiClient()
     mock.queue("ok")
     agent = ClinicalContextAgent(gemini=mock)
