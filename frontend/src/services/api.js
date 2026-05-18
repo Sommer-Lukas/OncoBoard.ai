@@ -325,6 +325,7 @@ export async function getPostMeeting(patientId) {
 }
 
 export function imageUrl(path) {
+  if (path.startsWith('http')) return path
   return `${BASE_URL}${path}`
 }
 

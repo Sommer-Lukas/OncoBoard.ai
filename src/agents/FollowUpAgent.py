@@ -9,7 +9,7 @@ from __future__ import annotations
 import json
 from datetime import date, datetime, timezone
 
-import aiosqlite
+import asyncpg
 from pydantic import BaseModel, ValidationError
 
 from src.agents.session_base import SessionBaseAgent
@@ -66,7 +66,7 @@ class FollowUpAgent(SessionBaseAgent[FollowUpOutput]):
     output_schema = FollowUpOutput
 
     async def run(
-        self, db: aiosqlite.Connection, session: Session, case: Case, *, run_id: str
+        self, db: asyncpg.Connection, session: Session, case: Case, *, run_id: str
     ) -> FollowUpOutput:
         actions = await repo.list_actions(db, session.session_id)
         today = datetime.now(timezone.utc).date()

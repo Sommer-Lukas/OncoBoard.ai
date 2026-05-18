@@ -8,7 +8,7 @@ from __future__ import annotations
 
 import json
 
-import aiosqlite
+import asyncpg
 from pydantic import BaseModel, ValidationError
 
 from src.agents.base import BaseAgent
@@ -37,7 +37,7 @@ class SummaryAgent(BaseAgent[SummaryOutput]):
     output_schema = SummaryOutput
 
     async def run(
-        self, db: aiosqlite.Connection, case: Case, *, run_id: str
+        self, db: asyncpg.Connection, case: Case, *, run_id: str
     ) -> SummaryOutput:
         compiled = await repo.get_latest_agent_output(db, case.case_id, "CaseCompiler")
         if compiled is None or compiled.status != "success":

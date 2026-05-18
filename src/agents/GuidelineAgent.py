@@ -8,7 +8,7 @@ from __future__ import annotations
 
 import json
 
-import aiosqlite
+import asyncpg
 from pydantic import BaseModel, ValidationError
 
 from src.agents.base import BaseAgent
@@ -44,7 +44,7 @@ class GuidelineAgent(BaseAgent[GuidelineOutput]):
     output_schema = GuidelineOutput
 
     async def run(
-        self, db: aiosqlite.Connection, case: Case, *, run_id: str
+        self, db: asyncpg.Connection, case: Case, *, run_id: str
     ) -> GuidelineOutput:
         prompt = (
             "Patient profile for guideline matching:\n"

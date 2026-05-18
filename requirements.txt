@@ -17,8 +17,8 @@ python-dotenv
 pydantic
 pydantic-settings
 
-# DB (async SQLite for FastAPI)
-aiosqlite
+# DB (async Postgres for FastAPI)
+asyncpg
 
 # Testing
 pytest

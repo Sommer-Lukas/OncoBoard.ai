@@ -14,7 +14,7 @@ import uuid
 from datetime import datetime, timezone
 from typing import Annotated, AsyncIterator
 
-import aiosqlite
+import asyncpg
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
@@ -27,7 +27,7 @@ from src.db.models import Session
 
 router = APIRouter(tags=["meeting"])
 
-_Db = Annotated[aiosqlite.Connection, Depends(get_db)]
+_Db = Annotated[asyncpg.Connection, Depends(get_db)]
 
 
 def _sse(event: str, data: dict) -> str:

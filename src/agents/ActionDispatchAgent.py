@@ -9,7 +9,7 @@ from __future__ import annotations
 import json
 from datetime import datetime, timezone
 
-import aiosqlite
+import asyncpg
 from pydantic import BaseModel, ValidationError
 
 from src.agents.session_base import SessionBaseAgent
@@ -58,7 +58,7 @@ class ActionDispatchAgent(SessionBaseAgent[ActionDispatchOutput]):
     output_schema = ActionDispatchOutput
 
     async def run(
-        self, db: aiosqlite.Connection, session: Session, case: Case, *, run_id: str
+        self, db: asyncpg.Connection, session: Session, case: Case, *, run_id: str
     ) -> ActionDispatchOutput:
         rec = await repo.get_latest_agent_output(db, case.case_id, "RecommendationAgent")
         if rec is None or rec.status != "success":

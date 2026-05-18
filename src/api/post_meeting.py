@@ -13,7 +13,7 @@ import json
 from datetime import datetime, timezone
 from typing import Annotated, AsyncIterator
 
-import aiosqlite
+import asyncpg
 from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
@@ -25,7 +25,7 @@ from src.db.models import Gate
 
 router = APIRouter(tags=["post-meeting"])
 
-_Db = Annotated[aiosqlite.Connection, Depends(get_db)]
+_Db = Annotated[asyncpg.Connection, Depends(get_db)]
 
 _GATE2 = "consensus_confirmed"
 _GATE3 = "note_approved"
@@ -44,7 +44,7 @@ class _GateBody(BaseModel):
     notes: str | None = None
 
 
-async def _require_session(db: aiosqlite.Connection, session_id: str):
+async def _require_session(db: asyncpg.Connection, session_id: str):
     session = await repo.get_session(db, session_id)
     if session is None:
         raise HTTPException(status_code=404, detail="Session not found")

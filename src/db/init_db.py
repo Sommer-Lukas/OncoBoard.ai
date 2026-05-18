@@ -2,9 +2,7 @@
 import asyncio
 from pathlib import Path
 
-import aiosqlite
-
-from src.config import get_settings
+from src.db.connection import connect
 from src.logging_setup import get_logger
 
 SCHEMA_PATH = Path(__file__).parent / "schema.sql"
@@ -13,15 +11,16 @@ logger = get_logger(__name__)
 
 
 async def init_db() -> None:
-    settings = get_settings()
     schema_sql = SCHEMA_PATH.read_text(encoding="utf-8")
-    settings.db_path.parent.mkdir(parents=True, exist_ok=True)
-    async with aiosqlite.connect(settings.db_path) as db:
-        await db.executescript(schema_sql)
-        await db.commit()
+    # Split on semicolons so each statement is executed individually.
+    # Filter out blank/comment-only chunks produced by the split.
+    statements = [s.strip() for s in schema_sql.split(";") if s.strip()]
+    async with connect() as conn:
+        for stmt in statements:
+            await conn.execute(stmt)
     logger.info(
         "db_initialized",
-        extra={"extra_fields": {"event": "db_initialized", "db_path": str(settings.db_path)}},
+        extra={"extra_fields": {"event": "db_initialized"}},
     )
 
 

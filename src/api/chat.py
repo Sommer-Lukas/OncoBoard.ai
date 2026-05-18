@@ -1,7 +1,7 @@
 """Chat API — conversational RAG endpoint for the ClinicalContextAgent."""
 from typing import Annotated, Literal
 
-import aiosqlite
+import asyncpg
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 
@@ -11,7 +11,7 @@ from src.db import repository
 
 router = APIRouter(prefix="/cases", tags=["chat"])
 
-_Db = Annotated[aiosqlite.Connection, Depends(get_db)]
+_Db = Annotated[asyncpg.Connection, Depends(get_db)]
 
 
 class ChatMessage(BaseModel):

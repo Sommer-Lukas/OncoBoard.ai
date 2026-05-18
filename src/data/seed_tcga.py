@@ -6,11 +6,15 @@ Expects the three raw CSVs under data/raw/:
     CNV_RAW.csv                    (copy-number variation, ~59K gene columns)
 
 Optional MRI/SVS image directory is registered as case_files when --images-dir
-is provided. Image bytes are never stored in SQLite.
+is provided. When --blob-base-url is also given, file_path stores the full Vercel
+Blob URL instead of a local filesystem path.
 
 Usage:
-    .\\.venv\\Scripts\\python.exe -m src.data.seed_tcga
-    .\\.venv\\Scripts\\python.exe -m src.data.seed_tcga --images-dir data/raw/MRI_and_SVS_Patches
+    .venv/bin/python -m src.data.seed_tcga
+    .venv/bin/python -m src.data.seed_tcga --images-dir data/raw/MRI_and_SVS_Patches
+    .venv/bin/python -m src.data.seed_tcga \\
+        --images-dir data/raw/MRI_and_SVS_Patches \\
+        --blob-base-url https://yngqognljuucdmpc.public.blob.vercel-storage.com
 """
 from __future__ import annotations
 
@@ -20,6 +24,7 @@ import math
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Iterable
+from urllib.parse import quote
 
 import pandas as pd
 
@@ -154,7 +159,11 @@ def _cnv_row_to_dict(row: pd.Series) -> dict[str, float]:
 
 # -------- main seed routine --------
 
-async def seed(raw_dir: Path, images_dir: Path | None = None) -> dict[str, int]:
+async def seed(
+    raw_dir: Path,
+    images_dir: Path | None = None,
+    blob_base_url: str | None = None,
+) -> dict[str, int]:
     treatment_path = raw_dir / TREATMENT_CSV
     demographic_path = raw_dir / DEMOGRAPHIC_CSV
     cnv_path = raw_dir / CNV_CSV
@@ -185,16 +194,17 @@ async def seed(raw_dir: Path, images_dir: Path | None = None) -> dict[str, int]:
     subtype_counts: dict[str, int] = {}
 
     async with connect() as db:
-        for _, trow in treatment_df.iterrows():
-            barcode = trow.get("bcr_patient_barcode")
-            if not isinstance(barcode, str) or not barcode.strip():
-                continue
-            demo_row = demo_index.get(barcode)
-            case = _build_case(trow, demo_row, now)
-            await repo.upsert_case(db, case)
-            inserted_cases += 1
-            key = case.molecular_subtype or "Unknown"
-            subtype_counts[key] = subtype_counts.get(key, 0) + 1
+        async with db.transaction():
+            for _, trow in treatment_df.iterrows():
+                barcode = trow.get("bcr_patient_barcode")
+                if not isinstance(barcode, str) or not barcode.strip():
+                    continue
+                demo_row = demo_index.get(barcode)
+                case = _build_case(trow, demo_row, now)
+                await repo.upsert_case(db, case)
+                inserted_cases += 1
+                key = case.molecular_subtype or "Unknown"
+                subtype_counts[key] = subtype_counts.get(key, 0) + 1
 
     logger.info(
         "seed_tcga_cases_done",
@@ -210,27 +220,28 @@ async def seed(raw_dir: Path, images_dir: Path | None = None) -> dict[str, int]:
     if cnv_path.exists():
         cnv_df = pd.read_csv(cnv_path, low_memory=False)
         async with connect() as db:
-            for _, row in cnv_df.iterrows():
-                pid = row.get("Patient_ID")
-                if not isinstance(pid, str):
-                    continue
-                # Only attach genomics for cases we actually inserted.
-                existing = await repo.get_case(db, pid)
-                if not existing:
-                    continue
-                copy_numbers = _cnv_row_to_dict(row)
-                if not copy_numbers:
-                    continue
-                await repo.upsert_genomics(
-                    db,
-                    CaseGenomics(
-                        case_id=pid,
-                        source="CNV_RAW",
-                        copy_numbers=copy_numbers,
-                        created_at=now,
-                    ),
-                )
-                inserted_genomics += 1
+            async with db.transaction():
+                for _, row in cnv_df.iterrows():
+                    pid = row.get("Patient_ID")
+                    if not isinstance(pid, str):
+                        continue
+                    # Only attach genomics for cases we actually inserted.
+                    existing = await repo.get_case(db, pid)
+                    if not existing:
+                        continue
+                    copy_numbers = _cnv_row_to_dict(row)
+                    if not copy_numbers:
+                        continue
+                    await repo.upsert_genomics(
+                        db,
+                        CaseGenomics(
+                            case_id=pid,
+                            source="CNV_RAW",
+                            copy_numbers=copy_numbers,
+                            created_at=now,
+                        ),
+                    )
+                    inserted_genomics += 1
 
         logger.info(
             "seed_tcga_genomics_done",
@@ -246,7 +257,7 @@ async def seed(raw_dir: Path, images_dir: Path | None = None) -> dict[str, int]:
                 extra={"extra_fields": {"event": "seed_tcga_images_skip", "reason": "missing", "path": str(images_dir)}},
             )
         else:
-            inserted_files = await _seed_images(images_dir, now)
+            inserted_files = await _seed_images(images_dir, now, blob_base_url=blob_base_url)
             logger.info(
                 "seed_tcga_images_done",
                 extra={"extra_fields": {"event": "seed_tcga_images_done", "files": inserted_files}},
@@ -260,9 +271,37 @@ async def seed(raw_dir: Path, images_dir: Path | None = None) -> dict[str, int]:
     }
 
 
-async def _seed_images(images_dir: Path, now: str) -> int:
-    """Walk <patient>/<patient>_mri_processed/<series>/img_NNNN.jpg layout.
-    Only registers files whose case_id is already in the DB."""
+def _file_type_from_dir(dir_name: str) -> str:
+    """Classify a patient subdirectory as mri_patch or svs_patch."""
+    if "SVS_patches" in dir_name or "svs_patches" in dir_name.lower():
+        return "svs_patch"
+    return "mri_patch"
+
+
+def _blob_url(blob_base_url: str, images_dir: Path, img_path: Path) -> str:
+    """Construct the Vercel Blob URL for an image file.
+
+    Blob paths mirror the local structure relative to images_dir's parent, e.g.:
+      local:  data/raw/MRI_and_SVS_Patches/TCGA-AO-A03M/TCGA-AO-A03M_mri_processed/.../img.jpg
+      blob:   {blob_base_url}/MRI_and_SVS_Patches/TCGA-AO-A03M/TCGA-AO-A03M_mri_processed/.../img.jpg
+    """
+    # relative_to(images_dir.parent) gives "MRI_and_SVS_Patches/..."
+    rel = img_path.relative_to(images_dir.parent).as_posix()
+    return f"{blob_base_url.rstrip('/')}/{quote(rel, safe='/')}"
+
+
+async def _seed_images(
+    images_dir: Path,
+    now: str,
+    *,
+    blob_base_url: str | None = None,
+) -> int:
+    """Walk patient image directories and register files in the DB.
+
+    file_path stores either the full Vercel Blob URL (when blob_base_url is
+    given) or the local absolute path (for local-only seeding).
+    Only registers files whose case_id is already in the DB.
+    """
     inserted = 0
     async with connect() as db:
         patient_dirs: Iterable[Path] = (p for p in images_dir.iterdir() if p.is_dir())
@@ -271,23 +310,55 @@ async def _seed_images(images_dir: Path, now: str) -> int:
             existing = await repo.get_case(db, case_id)
             if not existing:
                 continue
-            for series_dir in patient_dir.rglob("*"):
-                if not series_dir.is_dir():
-                    continue
-                for img_path in sorted(series_dir.glob("*.jpg")):
-                    seq = _parse_seq_index(img_path.stem)
-                    await repo.add_case_file(
-                        db,
-                        CaseFile(
-                            case_id=case_id,
-                            file_type="mri_patch",
-                            file_path=str(img_path),
-                            series_id=series_dir.name,
-                            sequence_index=seq,
-                            created_at=now,
-                        ),
-                    )
-                    inserted += 1
+            async with db.transaction():
+                for top_dir in sorted(patient_dir.iterdir()):
+                    if not top_dir.is_dir():
+                        continue
+                    ftype = _file_type_from_dir(top_dir.name)
+                    if ftype == "svs_patch":
+                        # SVS patches are directly in the top_dir
+                        for img_path in sorted(top_dir.glob("*.jpg")):
+                            path = (
+                                _blob_url(blob_base_url, images_dir, img_path)
+                                if blob_base_url
+                                else str(img_path)
+                            )
+                            await repo.add_case_file(
+                                db,
+                                CaseFile(
+                                    case_id=case_id,
+                                    file_type="svs_patch",
+                                    file_path=path,
+                                    series_id=top_dir.name,
+                                    sequence_index=None,
+                                    created_at=now,
+                                ),
+                            )
+                            inserted += 1
+                    else:
+                        # MRI patches are nested: top_dir/series_dir/img.jpg
+                        for series_dir in sorted(top_dir.iterdir()):
+                            if not series_dir.is_dir():
+                                continue
+                            for img_path in sorted(series_dir.glob("*.jpg")):
+                                seq = _parse_seq_index(img_path.stem)
+                                path = (
+                                    _blob_url(blob_base_url, images_dir, img_path)
+                                    if blob_base_url
+                                    else str(img_path)
+                                )
+                                await repo.add_case_file(
+                                    db,
+                                    CaseFile(
+                                        case_id=case_id,
+                                        file_type="mri_patch",
+                                        file_path=path,
+                                        series_id=series_dir.name,
+                                        sequence_index=seq,
+                                        created_at=now,
+                                    ),
+                                )
+                                inserted += 1
     return inserted
 
 
@@ -303,13 +374,18 @@ def _parse_seq_index(stem: str) -> int | None:
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Seed SQLite from the TCGA-BRCA Kaggle dataset")
+    parser = argparse.ArgumentParser(description="Seed Postgres from the TCGA-BRCA Kaggle dataset")
     parser.add_argument("--raw-dir", default=str(DEFAULT_RAW_DIR), help="Directory holding the 3 CSVs")
     parser.add_argument("--images-dir", default=None, help="Optional path to extracted MRI_and_SVS_Patches/")
+    parser.add_argument(
+        "--blob-base-url",
+        default=None,
+        help="Vercel Blob base URL. When set, file_path stores blob URLs instead of local paths.",
+    )
     args = parser.parse_args()
     raw_dir = Path(args.raw_dir)
     images_dir = Path(args.images_dir) if args.images_dir else None
-    result = asyncio.run(seed(raw_dir, images_dir))
+    result = asyncio.run(seed(raw_dir, images_dir, blob_base_url=args.blob_base_url))
     print("seed complete:")
     for k, v in sorted(result.items()):
         print(f"  {k}: {v}")

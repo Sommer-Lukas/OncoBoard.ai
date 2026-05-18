@@ -18,7 +18,7 @@ from abc import ABC, abstractmethod
 from datetime import datetime, timezone
 from typing import ClassVar, Generic, TypeVar
 
-import aiosqlite
+import asyncpg
 from pydantic import BaseModel, ValidationError
 
 from src.agents.gemini_client import GeminiClient, get_gemini_client
@@ -65,13 +65,13 @@ class SessionBaseAgent(ABC, Generic[TOutput]):
 
     @abstractmethod
     async def run(
-        self, db: aiosqlite.Connection, session: Session, case: Case, *, run_id: str
+        self, db: asyncpg.Connection, session: Session, case: Case, *, run_id: str
     ) -> TOutput:
         """Subclass implementation. Session and case are already loaded."""
 
     async def execute(
         self,
-        db: aiosqlite.Connection,
+        db: asyncpg.Connection,
         session_id: str,
         *,
         run_id: str | None = None,
@@ -199,7 +199,7 @@ class SessionBaseAgent(ABC, Generic[TOutput]):
 
     async def _persist_error(
         self,
-        db: aiosqlite.Connection,
+        db: asyncpg.Connection,
         case_id: str,
         run_id: str,
         duration_ms: int,

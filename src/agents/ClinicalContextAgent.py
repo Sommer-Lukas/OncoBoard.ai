@@ -13,7 +13,7 @@ from __future__ import annotations
 import json
 from typing import Literal
 
-import aiosqlite
+import asyncpg
 
 from src.agents.gemini_client import GeminiClient, get_gemini_client
 from src.db import repository as repo
@@ -61,7 +61,7 @@ class ClinicalContextAgent:
 
     async def chat(
         self,
-        db: aiosqlite.Connection,
+        db: asyncpg.Connection,
         case_id: str,
         messages: list[dict],  # [{"role": "user"|"assistant", "content": str}, ...]
         phase: Phase = "pre",
@@ -77,7 +77,7 @@ class ClinicalContextAgent:
 
     # ── private ───────────────────────────────────────────────────────────────
 
-    async def _build_context(self, db: aiosqlite.Connection, case_id: str, phase: Phase) -> str:
+    async def _build_context(self, db: asyncpg.Connection, case_id: str, phase: Phase) -> str:
         parts: list[str] = []
 
         # Clinical record
