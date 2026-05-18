@@ -1,18 +1,17 @@
 """Read-only case API. All DB access goes through repository helpers."""
 from typing import Annotated
 
-import aiosqlite
+import asyncpg
 from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel
 
-from src.config import get_settings
 from src.db import repository
 from src.db.connection import get_db
 from src.db.models import AgentOutput, Case, CaseFile
 
 router = APIRouter(prefix="/cases", tags=["cases"])
 
-_Db = Annotated[aiosqlite.Connection, Depends(get_db)]
+_Db = Annotated[asyncpg.Connection, Depends(get_db)]
 
 
 # ── List & detail ──────────────────────────────────────────────────────────────
@@ -89,31 +88,13 @@ class ImagesResponse(BaseModel):
 @router.get("/{case_id}/images", response_model=ImagesResponse)
 async def list_case_images(
     case_id: str,
+    db: _Db,
     type: Annotated[str, Query(description="'mri' or 'svs'")] = "mri",
 ) -> ImagesResponse:
-    images_root = get_settings().images_dir
-    patient_dir = (images_root / case_id).resolve()
-    if not patient_dir.is_dir() or images_root.resolve() not in patient_dir.parents:
-        return ImagesResponse(case_id=case_id, type=type, images=[])
-
-    paths: list[str] = []
-
-    if type == "svs":
-        target = patient_dir / f"{case_id}-01Z-00-DX1SVS_patches"
-        if target.is_dir():
-            for f in sorted(target.glob("*.jpg")):
-                paths.append(f"/images/{case_id}/{target.name}/{f.name}")
-
-    else:  # mri
-        target = patient_dir / f"{case_id}_mri_processed"
-        if target.is_dir():
-            for series in sorted(target.iterdir()):
-                if not series.is_dir():
-                    continue
-                for f in sorted(series.glob("*.jpg")):
-                    paths.append(f"/images/{case_id}/{target.name}/{series.name}/{f.name}")
-
-    return ImagesResponse(case_id=case_id, type=type, images=paths)
+    file_type = "mri_patch" if type == "mri" else "svs_patch"
+    files = await repository.list_case_files(db, case_id, file_type=file_type)
+    images = [f.file_path for f in files]
+    return ImagesResponse(case_id=case_id, type=type, images=images)
 
 
 # ── Files (DB-tracked) ─────────────────────────────────────────────────────────

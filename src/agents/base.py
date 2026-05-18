@@ -17,7 +17,7 @@ from abc import ABC, abstractmethod
 from datetime import datetime, timezone
 from typing import ClassVar, Generic, TypeVar
 
-import aiosqlite
+import asyncpg
 from pydantic import BaseModel, ValidationError
 
 from src.agents.gemini_client import GeminiClient, get_gemini_client
@@ -58,12 +58,12 @@ class BaseAgent(ABC, Generic[TOutput]):
         self.logger = get_logger(f"agent.{self.name}")
 
     @abstractmethod
-    async def run(self, db: aiosqlite.Connection, case: Case, *, run_id: str) -> TOutput:
+    async def run(self, db: asyncpg.Connection, case: Case, *, run_id: str) -> TOutput:
         """Subclass implementation. The case is already loaded; return a typed output."""
 
     async def execute(
         self,
-        db: aiosqlite.Connection,
+        db: asyncpg.Connection,
         case_id: str,
         *,
         run_id: str | None = None,
@@ -189,7 +189,7 @@ class BaseAgent(ABC, Generic[TOutput]):
 
     async def _persist_error(
         self,
-        db: aiosqlite.Connection,
+        db: asyncpg.Connection,
         case_id: str,
         run_id: str,
         duration_ms: int,

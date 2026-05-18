@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import json
 
-import aiosqlite
+import asyncpg
 from pydantic import BaseModel, ValidationError
 
 from src.agents.base import BaseAgent
@@ -50,7 +50,7 @@ class HistoryCaseAgent(BaseAgent[HistoryCaseOutput]):
     output_schema = HistoryCaseOutput
 
     async def run(
-        self, db: aiosqlite.Connection, case: Case, *, run_id: str
+        self, db: asyncpg.Connection, case: Case, *, run_id: str
     ) -> HistoryCaseOutput:
         candidates = await self._find_candidates(db, case)
         candidates = [c for c in candidates if c.case_id != case.case_id]
@@ -127,7 +127,7 @@ class HistoryCaseAgent(BaseAgent[HistoryCaseOutput]):
             ) from e
 
     async def _find_candidates(
-        self, db: aiosqlite.Connection, case: Case
+        self, db: asyncpg.Connection, case: Case
     ) -> list[Case]:
         if case.molecular_subtype:
             by_subtype = await repo.list_cases(

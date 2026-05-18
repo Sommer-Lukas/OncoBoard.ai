@@ -8,7 +8,7 @@ from __future__ import annotations
 
 from typing import Any, Literal
 
-import aiosqlite
+import asyncpg
 from pydantic import BaseModel
 
 from src.agents.base import BaseAgent
@@ -55,7 +55,7 @@ class CaseCompiler(BaseAgent[CaseCompilerOutput]):
     output_schema = CaseCompilerOutput
 
     async def run(
-        self, db: aiosqlite.Connection, case: Case, *, run_id: str
+        self, db: asyncpg.Connection, case: Case, *, run_id: str
     ) -> CaseCompilerOutput:
         clinical = {
             "age_at_diagnosis": case.age_at_diagnosis,
@@ -90,7 +90,7 @@ class CaseCompiler(BaseAgent[CaseCompilerOutput]):
         )
 
     async def _summarize_genomics(
-        self, db: aiosqlite.Connection, case_id: str
+        self, db: asyncpg.Connection, case_id: str
     ) -> GenomicsSummary:
         record = await repo.get_genomics_any(db, case_id)
         if record is None:
@@ -108,7 +108,7 @@ class CaseCompiler(BaseAgent[CaseCompilerOutput]):
         )
 
     async def _inventory_files(
-        self, db: aiosqlite.Connection, case_id: str
+        self, db: asyncpg.Connection, case_id: str
     ) -> dict[str, int]:
         files = await repo.list_case_files(db, case_id)
         counts: dict[str, int] = {}

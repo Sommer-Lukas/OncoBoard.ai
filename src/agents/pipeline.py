@@ -19,7 +19,7 @@ import uuid
 from dataclasses import asdict, dataclass
 from typing import Any, AsyncIterator
 
-import aiosqlite
+import asyncpg
 
 from src.agents.CaseCompiler import CaseCompiler
 from src.agents.gemini_client import GeminiClient
@@ -48,7 +48,7 @@ class PipelineEvent:
 
 
 async def run_pre_meeting(
-    db: aiosqlite.Connection,
+    db: asyncpg.Connection,
     case_id: str,
     *,
     gemini: GeminiClient | None = None,

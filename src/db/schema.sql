@@ -1,12 +1,10 @@
--- OncoBoard.ai schema (SQLite)
--- All raw SQL lives in src/db/. Agents must use repository.py, never touch SQLite directly.
+-- OncoBoard.ai schema (PostgreSQL / Neon)
+-- All raw SQL lives in src/db/. Agents must use repository.py, never touch the DB directly.
 -- Designed against the TCGA-BRCA dataset:
 --   Clinical_Treatment_Data.csv   -> cases (1097 patients, clean receptor columns)
 --   Clinical_Demographic_Data.csv -> case_demographics_extra (richer TCGA fields)
 --   CNV_RAW.csv                   -> case_genomics (CNV as JSON blob, ~59K genes)
---   MRI_and_SVS_Patches/...       -> case_files (file path references)
-
-PRAGMA foreign_keys = ON;
+--   MRI_and_SVS_Patches/...       -> case_files (Vercel Blob URL references)
 
 
 -- One row per patient. Sourced primarily from Clinical_Treatment_Data.csv.
@@ -66,7 +64,7 @@ CREATE INDEX IF NOT EXISTS idx_cases_stage   ON cases(ajcc_stage);
 -- copy_numbers_json is a {gene_symbol: copy_number_float} dict (~59K entries
 -- when sourced from CNV_RAW). Agents query specific genes via repository helpers.
 CREATE TABLE IF NOT EXISTS case_genomics (
-    genomics_id        INTEGER PRIMARY KEY AUTOINCREMENT,
+    genomics_id        SERIAL PRIMARY KEY,
     case_id            TEXT NOT NULL,
     source             TEXT NOT NULL,                     -- 'CNV_RAW' for now
     copy_numbers_json  TEXT NOT NULL,
@@ -78,14 +76,14 @@ CREATE TABLE IF NOT EXISTS case_genomics (
 CREATE INDEX IF NOT EXISTS idx_genomics_case ON case_genomics(case_id);
 
 
--- Image file references. We never store image bytes in SQLite — only paths.
+-- Image file references. We never store image bytes - only Vercel Blob URLs.
 -- One row per image (MRI patch, SVS patch). series_id groups patches from the
 -- same MRI series; sequence_index is the img_NNNN position within that series.
 CREATE TABLE IF NOT EXISTS case_files (
-    file_id         INTEGER PRIMARY KEY AUTOINCREMENT,
+    file_id         SERIAL PRIMARY KEY,
     case_id         TEXT NOT NULL,
     file_type       TEXT NOT NULL,                        -- 'mri_patch' | 'svs_patch'
-    file_path       TEXT NOT NULL,
+    file_path       TEXT NOT NULL,                        -- full Vercel Blob URL
     series_id       TEXT,
     sequence_index  INTEGER,
     metadata_json   TEXT,
@@ -101,7 +99,7 @@ CREATE INDEX IF NOT EXISTS idx_case_files_series ON case_files(case_id, series_i
 -- One row per agent invocation. output_json is the typed agent result.
 -- run_id groups all agent outputs from a single pipeline run on a case.
 CREATE TABLE IF NOT EXISTS agent_outputs (
-    output_id      INTEGER PRIMARY KEY AUTOINCREMENT,
+    output_id      SERIAL PRIMARY KEY,
     case_id        TEXT NOT NULL,
     agent_name     TEXT NOT NULL,
     run_id         TEXT NOT NULL,
@@ -130,7 +128,7 @@ CREATE TABLE IF NOT EXISTS sessions (
 
 
 CREATE TABLE IF NOT EXISTS transcripts (
-    transcript_id  INTEGER PRIMARY KEY AUTOINCREMENT,
+    transcript_id  SERIAL PRIMARY KEY,
     session_id     TEXT NOT NULL,
     speaker        TEXT,
     text           TEXT NOT NULL,
@@ -143,7 +141,7 @@ CREATE INDEX IF NOT EXISTS idx_transcripts_session ON transcripts(session_id);
 
 
 CREATE TABLE IF NOT EXISTS recommendations (
-    recommendation_id  INTEGER PRIMARY KEY AUTOINCREMENT,
+    recommendation_id  SERIAL PRIMARY KEY,
     session_id         TEXT NOT NULL,
     content_json       TEXT NOT NULL,
     confirmed_at       TEXT,                              -- set when Human Gate 2 passes
@@ -153,7 +151,7 @@ CREATE TABLE IF NOT EXISTS recommendations (
 
 
 CREATE TABLE IF NOT EXISTS actions (
-    action_id     INTEGER PRIMARY KEY AUTOINCREMENT,
+    action_id     SERIAL PRIMARY KEY,
     session_id    TEXT NOT NULL,
     description   TEXT NOT NULL,
     owner         TEXT,
@@ -171,7 +169,7 @@ CREATE INDEX IF NOT EXISTS idx_actions_status  ON actions(status);
 -- Human gate audit trail (Gate 1 = pre-meeting approval, Gate 2 = consensus
 -- confirmed, Gate 3 = note approved). Required for clinical traceability.
 CREATE TABLE IF NOT EXISTS gates (
-    gate_id      INTEGER PRIMARY KEY AUTOINCREMENT,
+    gate_id      SERIAL PRIMARY KEY,
     session_id   TEXT NOT NULL,
     gate_name    TEXT NOT NULL,                           -- 'pre_meeting_approval' | 'consensus_confirmed' | 'note_approved'
     approved_by  TEXT,

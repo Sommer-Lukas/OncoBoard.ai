@@ -9,7 +9,7 @@ from __future__ import annotations
 import json
 import os
 
-import aiosqlite
+import asyncpg
 from pydantic import BaseModel, ValidationError
 
 from src.agents.base import BaseAgent
@@ -46,7 +46,7 @@ class RadiologyAgent(BaseAgent[BiRadsFindings]):
     output_schema = BiRadsFindings
 
     async def run(
-        self, db: aiosqlite.Connection, case: Case, *, run_id: str
+        self, db: asyncpg.Connection, case: Case, *, run_id: str
     ) -> BiRadsFindings:
         files = await repo.list_case_files(db, case.case_id)
 

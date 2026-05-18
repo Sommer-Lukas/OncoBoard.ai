@@ -8,7 +8,7 @@ from __future__ import annotations
 
 import json
 
-import aiosqlite
+import asyncpg
 from pydantic import BaseModel, ValidationError
 
 from src.agents.session_base import SessionBaseAgent
@@ -43,7 +43,7 @@ class NoteDraftAgent(SessionBaseAgent[TumorBoardNote]):
     output_schema = TumorBoardNote
 
     async def run(
-        self, db: aiosqlite.Connection, session: Session, case: Case, *, run_id: str
+        self, db: asyncpg.Connection, session: Session, case: Case, *, run_id: str
     ) -> TumorBoardNote:
         rec = await repo.get_latest_agent_output(db, case.case_id, "RecommendationAgent")
         if rec is None or rec.status != "success":

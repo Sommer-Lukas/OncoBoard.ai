@@ -18,7 +18,7 @@ import asyncio
 import uuid
 from typing import AsyncIterator
 
-import aiosqlite
+import asyncpg
 
 from src.agents.ActionDispatchAgent import ActionDispatchAgent
 from src.agents.FollowUpAgent import FollowUpAgent
@@ -34,7 +34,7 @@ logger = get_logger(__name__)
 
 async def _run_parallel(
     agents: list[SessionBaseAgent],
-    db: aiosqlite.Connection,
+    db: asyncpg.Connection,
     session_id: str,
     run_id: str,
 ) -> AsyncIterator[PipelineEvent]:
@@ -52,7 +52,7 @@ async def _run_parallel(
 
 
 async def run_post_meeting(
-    db: aiosqlite.Connection,
+    db: asyncpg.Connection,
     session_id: str,
     *,
     gemini: GeminiClient | None = None,

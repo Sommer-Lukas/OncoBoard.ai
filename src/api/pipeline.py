@@ -6,7 +6,7 @@ server -> client, so SSE over WebSocket.
 import json
 from typing import Annotated, AsyncIterator
 
-import aiosqlite
+import asyncpg
 from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import StreamingResponse
 
@@ -16,7 +16,7 @@ from src.db.connection import connect, get_db
 
 router = APIRouter(prefix="/cases", tags=["pipeline"])
 
-_Db = Annotated[aiosqlite.Connection, Depends(get_db)]
+_Db = Annotated[asyncpg.Connection, Depends(get_db)]
 
 
 def _sse(event: str, data: dict) -> str:

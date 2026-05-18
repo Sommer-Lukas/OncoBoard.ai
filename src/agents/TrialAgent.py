@@ -10,7 +10,7 @@ import json
 import logging
 from typing import Any
 
-import aiosqlite
+import asyncpg
 import httpx
 from pydantic import BaseModel, ValidationError
 
@@ -71,7 +71,7 @@ class TrialAgent(BaseAgent[TrialOutput]):
     output_schema = TrialOutput
 
     async def run(
-        self, db: aiosqlite.Connection, case: Case, *, run_id: str
+        self, db: asyncpg.Connection, case: Case, *, run_id: str
     ) -> TrialOutput:
         settings = get_settings()
         search_criteria: dict[str, Any] = {

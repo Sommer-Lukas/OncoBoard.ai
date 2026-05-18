@@ -17,7 +17,7 @@ from __future__ import annotations
 import json
 from datetime import datetime, timezone
 
-import aiosqlite
+import asyncpg
 from pydantic import BaseModel, ValidationError
 
 from src.agents.session_base import SessionBaseAgent
@@ -78,7 +78,7 @@ class RecommendationAgent(SessionBaseAgent[RecommendationOutput]):
     output_schema = RecommendationOutput
 
     async def run(
-        self, db: aiosqlite.Connection, session: Session, case: Case, *, run_id: str
+        self, db: asyncpg.Connection, session: Session, case: Case, *, run_id: str
     ) -> RecommendationOutput:
         transcripts = await repo.list_transcripts(db, session.session_id)
         if not transcripts:

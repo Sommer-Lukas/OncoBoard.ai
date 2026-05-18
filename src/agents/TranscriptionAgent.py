@@ -34,7 +34,7 @@ import json
 import uuid
 from datetime import datetime, timezone
 
-import aiosqlite
+import asyncpg
 from pydantic import BaseModel, ValidationError
 
 from src.agents.session_base import SessionBaseAgent
@@ -105,7 +105,7 @@ def _parse_segments(raw_text: str, session_id: str) -> list[TranscriptSegment]:
 
 
 async def _save_segments(
-    db: aiosqlite.Connection,
+    db: asyncpg.Connection,
     session_id: str,
     segments: list[TranscriptSegment],
 ) -> None:
@@ -131,7 +131,7 @@ class TranscriptionAgent(SessionBaseAgent[TranscriptionOutput]):
     output_schema = TranscriptionOutput
 
     async def run(
-        self, db: aiosqlite.Connection, session: Session, case: Case, *, run_id: str
+        self, db: asyncpg.Connection, session: Session, case: Case, *, run_id: str
     ) -> TranscriptionOutput:
         """Demo path: generate a fixture transcript via Gemini from case data."""
         prompt = (
@@ -166,7 +166,7 @@ class TranscriptionAgent(SessionBaseAgent[TranscriptionOutput]):
 
     async def transcribe_audio(
         self,
-        db: aiosqlite.Connection,
+        db: asyncpg.Connection,
         session_id: str,
         audio_bytes: bytes,
         *,

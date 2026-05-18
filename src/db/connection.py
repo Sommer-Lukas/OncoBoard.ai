@@ -1,26 +1,22 @@
 from contextlib import asynccontextmanager
-from pathlib import Path
 from typing import AsyncIterator
 
-import aiosqlite
+import asyncpg
 
 from src.config import get_settings
 
 
-def _db_path() -> Path:
-    return get_settings().db_path
-
-
 @asynccontextmanager
-async def connect() -> AsyncIterator[aiosqlite.Connection]:
-    """Open an aiosqlite connection with FK enforcement + row factory."""
-    async with aiosqlite.connect(_db_path()) as db:
-        db.row_factory = aiosqlite.Row
-        await db.execute("PRAGMA foreign_keys = ON")
-        yield db
+async def connect() -> AsyncIterator[asyncpg.Connection]:
+    """Open an asyncpg connection to Neon Postgres."""
+    conn: asyncpg.Connection = await asyncpg.connect(dsn=get_settings().postgres_url)
+    try:
+        yield conn
+    finally:
+        await conn.close()
 
 
-async def get_db() -> AsyncIterator[aiosqlite.Connection]:
+async def get_db() -> AsyncIterator[asyncpg.Connection]:
     """FastAPI dependency. Yields a connection for the request lifecycle."""
-    async with connect() as db:
-        yield db
+    async with connect() as conn:
+        yield conn

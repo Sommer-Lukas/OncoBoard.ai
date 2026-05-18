@@ -7,7 +7,7 @@ from __future__ import annotations
 
 import json
 
-import aiosqlite
+import asyncpg
 from pydantic import BaseModel, ValidationError
 
 from src.agents.base import BaseAgent
@@ -48,7 +48,7 @@ class PathologyAgent(BaseAgent[PathologyOutput]):
     output_schema = PathologyOutput
 
     async def run(
-        self, db: aiosqlite.Connection, case: Case, *, run_id: str
+        self, db: asyncpg.Connection, case: Case, *, run_id: str
     ) -> PathologyOutput:
         genomics = await repo.get_genomics_any(db, case.case_id)
         gene_cnv: dict[str, float | None] = {g: None for g in _DRIVER_GENES}
