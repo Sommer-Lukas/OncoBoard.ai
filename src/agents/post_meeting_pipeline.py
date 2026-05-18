@@ -27,6 +27,7 @@ from src.agents.NoteDraftAgent import NoteDraftAgent
 from src.agents.pipeline import PipelineEvent
 from src.agents.SchedulingAgent import SchedulingAgent
 from src.agents.session_base import SessionBaseAgent
+from src.db.connection import connect
 from src.logging_setup import get_logger
 
 logger = get_logger(__name__)
@@ -40,8 +41,13 @@ async def _run_parallel(
 ) -> AsyncIterator[PipelineEvent]:
     for agent in agents:
         yield PipelineEvent("agent", agent.name, "running", run_id)
+
+    async def _run_one(a: SessionBaseAgent):
+        async with connect() as agent_db:
+            return await a.execute(agent_db, session_id, run_id=run_id)
+
     results = await asyncio.gather(
-        *[a.execute(db, session_id, run_id=run_id) for a in agents],
+        *[_run_one(a) for a in agents],
         return_exceptions=True,
     )
     for agent, result in zip(agents, results):
