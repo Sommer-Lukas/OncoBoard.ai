@@ -86,8 +86,7 @@ class RadiologyAgent(BaseAgent[BiRadsFindings]):
         files = await repo.list_case_files(db, case.case_id)
 
         mri = [f for f in files if f.file_type == "mri_patch"]
-        svs = [f for f in files if f.file_type == "svs_patch"]
-        candidates = mri or svs
+        candidates = mri
 
         # One tile per series up to _MAX_TILES
         seen_series: set[str | None] = set()
@@ -100,11 +99,7 @@ class RadiologyAgent(BaseAgent[BiRadsFindings]):
                     break
 
         accessible = [p for p in sampled_paths if _is_accessible(p)]
-        modalities: list[str] = []
-        if mri:
-            modalities.append("MRI")
-        if svs:
-            modalities.append("H&E Whole Slide (SVS patch)")
+        modalities: list[str] = ["MRI"] if mri else []
 
         clinical_ctx = (
             f"Patient: {case.age_at_diagnosis or 'unknown'} yo, "
