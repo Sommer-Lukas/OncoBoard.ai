@@ -5,6 +5,7 @@ from typing import Any
 
 import aiosqlite
 
+from src.utils.patient_names import fake_name
 from src.db.models import (
     Action,
     AgentOutput,
@@ -49,6 +50,7 @@ CASE_COLUMNS = (
 def _row_to_case(row: aiosqlite.Row) -> Case:
     return Case(
         case_id=row["case_id"],
+        patient_name=fake_name(row["case_id"]),
         age_at_diagnosis=row["age_at_diagnosis"],
         gender=row["gender"],
         race=row["race"],

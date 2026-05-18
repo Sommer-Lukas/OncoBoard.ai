@@ -221,7 +221,7 @@ function receptorString(c) {
 function mapApiCase(c) {
   return {
     id: c.case_id,
-    name: c.case_id,
+    name: c.patient_name ?? c.case_id,
     age: c.age_at_diagnosis ?? '—',
     stage: c.ajcc_stage ?? '—',
     receptors: receptorString(c),
