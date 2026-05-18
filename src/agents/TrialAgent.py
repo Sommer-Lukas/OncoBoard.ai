@@ -6,6 +6,7 @@ eligibility delta for the patient. Returns structured trial matches.
 """
 from __future__ import annotations
 
+import asyncio
 import json
 import logging
 from typing import Any
@@ -84,8 +85,10 @@ class TrialAgent(BaseAgent[TrialOutput]):
         }
 
         async with httpx.AsyncClient(timeout=15.0, headers=_HTTP_HEADERS) as client:
-            trials_data = await self._fetch_trials(client, settings.clinicaltrials_base_url, case)
-            pubmed_ids = await self._search_pubmed(client, settings.pubmed_base_url, case)
+            trials_data, pubmed_ids = await asyncio.gather(
+                self._fetch_trials(client, settings.clinicaltrials_base_url, case),
+                self._search_pubmed(client, settings.pubmed_base_url, case),
+            )
             pubmed_refs = await self._fetch_pubmed_summaries(client, settings.pubmed_base_url, pubmed_ids)
 
         trial_summaries = self._extract_trial_summaries(trials_data)

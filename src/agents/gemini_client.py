@@ -90,6 +90,11 @@ class RealGeminiClient:
         if response_schema is not None:
             config_kwargs["response_mime_type"] = "application/json"
             config_kwargs["response_schema"] = response_schema
+            # Gemini 2.5 thinking tokens can contaminate resp.text and break
+            # json.loads in callers. Set budget_tokens=0 for structured output.
+            config_kwargs["thinking_config"] = genai_types.ThinkingConfig(
+                thinking_budget=0
+            )
         config = genai_types.GenerateContentConfig(**config_kwargs) if config_kwargs else None
 
         if image_paths or audio_data is not None:
