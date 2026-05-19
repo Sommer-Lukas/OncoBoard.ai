@@ -124,6 +124,15 @@ async function handleSaveNote(content) {
   await saveNote(activeId.value, content)
 }
 
+const verification = computed(() => agents.getVerification(activeId.value))
+
+function handleVerify(agentName) {
+  agents.verifyAgent(activeId.value, agentName)
+}
+function handleUnverify(agentName) {
+  agents.unverifyAgent(activeId.value, agentName)
+}
+
 // ── Sidebar helpers ──────────────────────────────────────────────────────────
 
 function postStatus(patientId) {
@@ -311,6 +320,11 @@ function postStatus(patientId) {
                 :key="agent.name"
                 v-bind="agent"
                 :style="{ '--i': i }"
+                :verified="!!verification[agent.name]?.verified"
+                :verified-by="verification[agent.name]?.verifiedBy ?? null"
+                :verified-ts="verification[agent.name]?.ts ?? null"
+                @verify="handleVerify"
+                @unverify="handleUnverify"
               />
             </div>
 
